@@ -2,11 +2,58 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body, #root {
+:root {
+  --bg: #0d1117;
+  --panel: #141a21;
+  --border: #283039;
+  --text: #dfe5ec;
+  --text-dim: #8b97a6;
+  --ok: #3fb950;
+  --caution: #d9a005;
+  --alarm: #e5484d;
+  --info: #2f81f7;
+}
+
+html,
+body,
+#root {
   margin: 0;
   width: 100%;
   height: 100%;
-  background: #0b1020;
-  font-family: ui-sans-serif, system-ui, 'Segoe UI', 'Malgun Gothic', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Pretendard', ui-sans-serif, system-ui, 'Segoe UI', 'Malgun Gothic', sans-serif;
   overflow: hidden;
+  /* 한국어 줄바꿈을 단어 단위로 — 어색한 중간 끊김 방지 */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* 데이터 수치는 등폭으로 정렬감 있게 */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+/* 관제 패널 공통 — 솔리드 그래파이트 + 스틸 보더 (글래스/블러 최소화) */
+.panel {
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* 알람 점멸 */
+@keyframes pulse-alarm {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.alarm-pulse {
+  animation: pulse-alarm 1.1s ease-in-out infinite;
+}
+
+/* 작은 화면 폰트 살짝 축소 (반응형 가독성) */
+@media (max-width: 640px) {
+  :root {
+    font-size: 14px;
+  }
 }
