@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useMemo, useLayoutEffect } from 'react';
 import * as THREE from 'three';
 import { Edges } from '@react-three/drei';
 import { useStore } from '../store.js';
@@ -17,13 +17,75 @@ function RackBlocks({ config }) {
       blocks.push(
         <mesh key={`${a}-${side}`} position={[blockW / 2 - cs.width / 2, blockH / 2 - cs.height / 2, z]}>
           <boxGeometry args={[blockW, blockH, cs.depth * 0.92]} />
-          <meshStandardMaterial color="#1e2a44" transparent opacity={0.1} />
-          <Edges color="#3b4d77" />
+          <meshStandardMaterial color="#16213b" transparent opacity={0.08} />
+          <Edges color="#34507f" />
         </mesh>,
       );
     }
   }
   return <group>{blocks}</group>;
+}
+
+/** 랙 기둥(업라이트, 인스턴스) — 베이 간격마다 수직 포스트. */
+function RackUprights({ config }) {
+  const cs = config.cellSize;
+  const postH = config.levels * cs.height;
+  const step = Math.max(4, Math.round(config.baysPerSide / 6));
+  const posts = useMemo(() => {
+    const arr = [];
+    for (let a = 1; a <= config.aisles; a++) {
+      for (const side of ['L', 'R']) {
+        const z = (a - 1) * config.aisleSpacing + (side === 'R' ? cs.depth : 0);
+        for (let b = 0; b <= config.baysPerSide; b += step) {
+          arr.push([b * cs.width - cs.width / 2, postH / 2, z]);
+        }
+      }
+    }
+    return arr;
+  }, [config, cs.width, cs.depth, postH, step]);
+
+  const ref = useRef();
+  useLayoutEffect(() => {
+    const m = ref.current;
+    if (!m) return;
+    const d = new THREE.Object3D();
+    posts.forEach((p, i) => {
+      d.position.set(p[0], p[1], p[2]);
+      d.scale.set(0.09, postH, 0.09);
+      d.updateMatrix();
+      m.setMatrixAt(i, d.matrix);
+    });
+    m.instanceMatrix.needsUpdate = true;
+  }, [posts, postH]);
+
+  return (
+    <instancedMesh ref={ref} args={[undefined, undefined, posts.length]} castShadow>
+      <boxGeometry />
+      <meshStandardMaterial color="#5b6675" metalness={0.5} roughness={0.5} />
+    </instancedMesh>
+  );
+}
+
+/** 통로별 상·하 가이드 레일 (크레인 주행로). */
+function GuideRails({ config }) {
+  const cs = config.cellSize;
+  const len = config.baysPerSide * cs.width;
+  const topY = config.levels * cs.height + 0.5;
+  const rails = [];
+  for (let a = 1; a <= config.aisles; a++) {
+    const z = (a - 1) * config.aisleSpacing + cs.depth / 2;
+    rails.push(
+      <mesh key={`f${a}`} position={[len / 2 - cs.width / 2, 0.06, z]} receiveShadow>
+        <boxGeometry args={[len, 0.12, 0.14]} />
+        <meshStandardMaterial color="#3a4658" metalness={0.6} roughness={0.4} />
+      </mesh>,
+      <mesh key={`t${a}`} position={[len / 2 - cs.width / 2, topY, z]}>
+        <boxGeometry args={[len, 0.1, 0.1]} />
+        <meshStandardMaterial color="#3a4658" metalness={0.6} roughness={0.4} />
+      </mesh>,
+    );
+  }
+  return <group>{rails}</group>;
 }
 
 /** 점유 셀 팔레트 — InstancedMesh (등급별 색). cellsVersion 변화 시 갱신. */
@@ -57,9 +119,9 @@ function Pallets({ config }) {
   }, [version, config, cells, cs.depth, cs.height, cs.width]);
 
   return (
-    <instancedMesh ref={ref} args={[undefined, undefined, max]} castShadow>
+    <instancedMesh ref={ref} args={[undefined, undefined, max]} castShadow receiveShadow>
       <boxGeometry />
-      <meshStandardMaterial roughness={0.6} />
+      <meshStandardMaterial roughness={0.65} metalness={0.05} />
     </instancedMesh>
   );
 }
@@ -69,9 +131,9 @@ function IOStation({ config }) {
   const cs = config.cellSize;
   const depth = (config.aisles - 1) * config.aisleSpacing + cs.depth;
   return (
-    <mesh position={[-cs.width, 0.06, depth / 2]}>
+    <mesh position={[-cs.width, 0.06, depth / 2]} receiveShadow>
       <boxGeometry args={[1.6, 0.12, depth + 2]} />
-      <meshStandardMaterial color="#10b981" emissive="#065f46" emissiveIntensity={0.4} />
+      <meshStandardMaterial color="#10b981" emissive="#065f46" emissiveIntensity={0.45} />
     </mesh>
   );
 }
@@ -82,6 +144,8 @@ export default function Warehouse() {
   return (
     <group>
       <RackBlocks config={config} />
+      <RackUprights config={config} />
+      <GuideRails config={config} />
       <Pallets config={config} />
       <IOStation config={config} />
     </group>
