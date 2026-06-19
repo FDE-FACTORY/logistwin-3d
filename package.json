@@ -1,0 +1,36 @@
+{
+  "name": "logistwin-3d",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Real-time 3D AS/RS (stacker-crane) logistics digital twin — backend simulation engine (Phase 1).",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "sim": "node src/index.js",
+    "compare": "node src/compare.js",
+    "serve": "node src/server.js",
+    "serve:dev": "node --watch src/server.js",
+    "ws:test": "node scripts/wsClient.js",
+    "import-layout": "node src/cad/importLayout.js"
+  },
+  "dependencies": {
+    "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.7.5"
+  },
+  "keywords": [
+    "digital-twin",
+    "asrs",
+    "stacker-crane",
+    "logistics",
+    "simulation",
+    "warehouse"
+  ],
+  "author": "",
+  "license": "MIT"
+}

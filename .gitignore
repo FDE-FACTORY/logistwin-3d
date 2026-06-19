@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Simulation event-sourcing output
+logs/
+*.jsonl
+
+# Generated layouts (CAD import output — reproducible)
+generated/
+
+# Env & secrets
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
