@@ -23,6 +23,8 @@ export default function Hud() {
   const model = useStore((s) => s.craneModelInfo);
   const config = useStore((s) => s.config);
   const orders = useStore((s) => s.orders);
+  const view = useStore((s) => s.view);
+  const setView = useStore((s) => s.setView);
 
   const fill = kpi ? (kpi.fillRate * 100).toFixed(1) : '—';
   const dualShare =
@@ -32,6 +34,23 @@ export default function Hud() {
 
   return (
     <div className="pointer-events-none absolute inset-0 p-4 text-slate-200">
+      {/* 상단 중앙: 2D/3D 토글 */}
+      <div className="pointer-events-auto absolute left-1/2 top-4 -translate-x-1/2">
+        <div className="flex rounded-lg border border-white/10 bg-slate-900/70 p-0.5 backdrop-blur">
+          {['3D', '2D'].map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
+                view === v ? 'bg-sky-500/90 text-white' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {v === '3D' ? '🧊 3D 트윈' : '🗺 2D 평면도'}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* 상단 좌: 타이틀 + 접속 */}
       <div className={`absolute left-4 top-4 ${panel}`}>
         <div className="flex items-center gap-2">

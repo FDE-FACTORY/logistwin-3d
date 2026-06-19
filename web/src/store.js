@@ -11,6 +11,7 @@ import { create } from 'zustand';
  */
 export const useStore = create((set, get) => ({
   connected: false,
+  view: '3D', // '3D' | '2D' — 뷰 모드
   config: null,
   craneModelInfo: null,
   cranes: [],
@@ -23,6 +24,7 @@ export const useStore = create((set, get) => ({
   cellsVersion: 0,
 
   setConnected: (v) => set({ connected: v }),
+  setView: (v) => set({ view: v }),
 
   applyInit: (d) => {
     const cells = new Map();
