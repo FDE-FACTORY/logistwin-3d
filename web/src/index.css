@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: #0b1020;
+  font-family: ui-sans-serif, system-ui, 'Segoe UI', 'Malgun Gothic', sans-serif;
+  overflow: hidden;
+}
