@@ -16,8 +16,8 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      # 헤드리스 스모크 — Single vs Dual 비교가 정상 종료하면 코어 동작 검증
-      - run: node src/compare.js --ticks=300 --rate=20
+      # 헤드리스 스모크 — Single vs Dual 비교(피크 부하)가 정상 종료하면 코어 동작 검증
+      - run: node src/compare.js --ticks=2000 --rate=24
       # CAD 임포트 동작 확인
       - run: node src/cad/importLayout.js --width 60 --depth 35 --height 8 --name "CI Check"
 
