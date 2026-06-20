@@ -1,5 +1,8 @@
+import { Suspense, useMemo } from 'react';
+import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, ContactShadows } from '@react-three/drei';
+import { OrbitControls, ContactShadows, useTexture } from '@react-three/drei';
+import { EffectComposer, N8AO, Bloom, SMAA, ToneMapping } from '@react-three/postprocessing';
 import { useStore } from '../store.js';
 import { warehouseExtent } from '../coords.js';
 import { theme } from '../theme.js';
@@ -13,10 +16,19 @@ function Rig({ ext, children }) {
 }
 
 function Floor({ ext }) {
+  const [map, roughMap] = useTexture(['/textures/concrete_diff.jpg', '/textures/concrete_rough.jpg']);
+  useMemo(() => {
+    [map, roughMap].forEach((t) => {
+      if (!t) return;
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set((ext.x + 60) / 3, (ext.z + 60) / 3);
+      t.anisotropy = 4;
+    });
+  }, [map, roughMap, ext]);
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[ext.x / 2, -0.04, ext.z / 2]} receiveShadow>
       <planeGeometry args={[ext.x + 60, ext.z + 60]} />
-      <meshStandardMaterial color={theme.concrete} metalness={0} roughness={1} />
+      <meshStandardMaterial map={map} roughnessMap={roughMap} color="#8c8c88" metalness={0} roughness={1} />
     </mesh>
   );
 }
@@ -59,6 +71,7 @@ export default function Scene() {
       <directionalLight position={[-ext.x * 0.6, ext.y * 1.8, -ext.z * 0.8]} intensity={0.3} color="#9fb0c8" />
 
       {config && (
+        <Suspense fallback={null}>
         <Rig ext={ext}>
           <Floor ext={ext} />
           <ContactShadows
@@ -75,6 +88,7 @@ export default function Scene() {
             <Crane key={c.id} data={c} />
           ))}
         </Rig>
+        </Suspense>
       )}
 
       <OrbitControls
@@ -89,6 +103,14 @@ export default function Scene() {
         minDistance={4}
         maxDistance={Math.max(ext.x, ext.z) * 3 + 80}
       />
+
+      {/* 포스트프로세싱 — 앰비언트 오클루전(접지·입체감) + 블룸 + AA */}
+      <EffectComposer disableNormalPass multisampling={0}>
+        <N8AO halfRes aoRadius={1.5} intensity={2.6} distanceFalloff={1.2} />
+        <Bloom intensity={0.2} luminanceThreshold={0.85} mipmapBlur />
+        <ToneMapping />
+        <SMAA />
+      </EffectComposer>
     </Canvas>
   );
 }
