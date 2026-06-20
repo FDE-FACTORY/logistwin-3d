@@ -183,6 +183,61 @@ function Pallets({ config }) {
   );
 }
 
+/**
+ * 자동화구역 안전 펜스 — 랙 전면(−X)에 가드레일. 자동 크레인 위험구역과 작업자/AGV
+ * 영역을 분리하는 현장 표준 요소. 통로 입구(P&D)마다 AGV 통행용 개구를 둔다.
+ */
+function SafetyFence({ config }) {
+  const cs = config.cellSize;
+  const zExt = (config.aisles - 1) * config.aisleSpacing + cs.depth;
+  const fx = -cs.width * 1.3; // 랙 전면과 반송 레인 사이
+  const H = 2.3;
+  const openHalf = 0.95; // 통로 입구 개구 절반
+  const z0 = -0.6;
+  const z1 = zExt + 0.6;
+  const segs = useMemo(() => {
+    const gaps = Array.from({ length: config.aisles }, (_, i) => i * config.aisleSpacing + cs.depth / 2).sort((a, b) => a - b);
+    const out = [];
+    let cur = z0;
+    for (const gz of gaps) {
+      const gs = gz - openHalf;
+      if (gs > cur) out.push([cur, gs]);
+      cur = Math.max(cur, gz + openHalf);
+    }
+    if (cur < z1) out.push([cur, z1]);
+    return out;
+  }, [config.aisles, config.aisleSpacing, cs.depth, z0, z1]);
+
+  return (
+    <group>
+      {segs.map(([s0, s1], i) => {
+        const len = s1 - s0;
+        const mid = (s0 + s1) / 2;
+        const nPost = Math.max(2, Math.round(len / 1.8) + 1);
+        return (
+          <group key={i} position={[fx, 0, mid]}>
+            {[0.2, 1.15, H - 0.05].map((yy, j) => (
+              <mesh key={j} position={[0, yy, 0]}>
+                <boxGeometry args={[0.05, 0.05, len]} />
+                <meshStandardMaterial color={theme.safety} metalness={0.3} roughness={0.6} />
+              </mesh>
+            ))}
+            {Array.from({ length: nPost }).map((_, k) => {
+              const t = nPost > 1 ? k / (nPost - 1) : 0;
+              return (
+                <mesh key={k} position={[0, H / 2, -len / 2 + t * len]} castShadow>
+                  <boxGeometry args={[0.08, H, 0.08]} />
+                  <meshStandardMaterial color="#c2ad36" metalness={0.35} roughness={0.6} />
+                </mesh>
+              );
+            })}
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
 /** 입출하장(I/O) 플랫폼 표시. */
 function IOStation({ config }) {
   const cs = config.cellSize;
@@ -223,6 +278,7 @@ export default function Warehouse() {
     <group>
       <RackStructure config={config} />
       <GuideRails config={config} />
+      <SafetyFence config={config} />
       <Pallets config={config} />
       <ExceptionMarkers config={config} />
       <IOStation config={config} />
