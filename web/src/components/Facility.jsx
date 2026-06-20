@@ -170,6 +170,107 @@ function Truck({ dock }) {
   );
 }
 
+/** 지게차 — 도크에서 스테이징↔트럭 상차 작업(프론트 애니메이션). */
+function Forklift({ dock, b, cs }) {
+  const ref = useRef();
+  const forks = useRef();
+  const pallet = useRef();
+  const phase = useRef(0);
+  const active = dock.kind === 'out' && dock.truck.state === 'docked';
+  const x0 = b.stagingX + 2; // 스테이징 측
+  useFrame((_, dt) => {
+    const g = ref.current;
+    if (!g) return;
+    if (!active) {
+      // 대기: 스테이징 옆에 정차, 포크 하강
+      g.position.x = lerp(g.position.x, x0, 0.05);
+      if (forks.current) forks.current.position.y = lerp(forks.current.position.y, 0.25, 0.1);
+      if (pallet.current) pallet.current.visible = false;
+      return;
+    }
+    phase.current = (phase.current + dt * 0.22) % 1;
+    const p = phase.current;
+    const x1 = dock.truck.x - 2.2; // 트럭 후면 근처
+    let x = x0;
+    let fy = 0.25;
+    let carry = false;
+    if (p < 0.4) {
+      const u = p / 0.4;
+      x = x0 + (x1 - x0) * u;
+      fy = 0.4;
+      carry = true;
+    } else if (p < 0.52) {
+      x = x1;
+      fy = 0.4 + ((p - 0.4) / 0.12) * 1.1; // 트럭 안으로 들어올림
+      carry = true;
+    } else if (p < 0.9) {
+      const u = (p - 0.52) / 0.38;
+      x = x1 + (x0 - x1) * u;
+      fy = 0.25;
+      carry = false;
+    }
+    g.position.x = x;
+    if (forks.current) forks.current.position.y = fy;
+    if (pallet.current) pallet.current.visible = carry;
+  });
+
+  return (
+    <group ref={ref} position={[x0, 0, dock.z + 1.6]}>
+      {/* 카운터웨이트 바디 (forks가 +X=트럭 향함) */}
+      <mesh position={[-0.5, 0.55, 0]} castShadow>
+        <boxGeometry args={[1.3, 0.9, 1.0]} />
+        <meshStandardMaterial color="#c8761e" metalness={0.3} roughness={0.55} />
+      </mesh>
+      {/* 운전석 + 오버헤드 가드 */}
+      <mesh position={[-0.55, 1.0, 0]}>
+        <boxGeometry args={[0.5, 0.3, 0.7]} />
+        <meshStandardMaterial color="#1c2128" roughness={0.7} />
+      </mesh>
+      {[[-0.95, 0.45], [-0.1, 0.45], [-0.95, -0.45], [-0.1, -0.45]].map(([px, pz], i) => (
+        <mesh key={i} position={[px, 1.4, pz]}>
+          <boxGeometry args={[0.06, 0.9, 0.06]} />
+          <meshStandardMaterial color="#2a2f37" metalness={0.5} roughness={0.5} />
+        </mesh>
+      ))}
+      <mesh position={[-0.5, 1.85, 0]}>
+        <boxGeometry args={[0.95, 0.06, 1.0]} />
+        <meshStandardMaterial color="#2a2f37" metalness={0.5} roughness={0.5} />
+      </mesh>
+      {/* 마스트 (앞쪽 +X) */}
+      {[-0.18, 0.18].map((pz, i) => (
+        <mesh key={i} position={[0.45, 1.2, pz]} castShadow>
+          <boxGeometry args={[0.1, 2.3, 0.1]} />
+          <meshStandardMaterial color="#3a4250" metalness={0.5} roughness={0.45} />
+        </mesh>
+      ))}
+      {/* 포크(승강) */}
+      <group ref={forks} position={[0, 0.25, 0]}>
+        <mesh position={[0.55, 0, 0]}>
+          <boxGeometry args={[0.12, 0.5, 0.9]} />
+          <meshStandardMaterial color="#22272e" metalness={0.5} roughness={0.5} />
+        </mesh>
+        {[-0.28, 0.28].map((pz, i) => (
+          <mesh key={i} position={[1.05, -0.18, pz]} castShadow>
+            <boxGeometry args={[0.95, 0.06, 0.12]} />
+            <meshStandardMaterial color="#15181d" metalness={0.6} roughness={0.4} />
+          </mesh>
+        ))}
+        <mesh ref={pallet} position={[1.1, 0.12, 0]} visible={false} castShadow>
+          <boxGeometry args={[cs.width * 0.7, cs.height * 0.5, cs.depth * 0.7]} />
+          <meshStandardMaterial color={theme.load.A} roughness={0.85} />
+        </mesh>
+      </group>
+      {/* 바퀴 */}
+      {[[0.4, 0.55], [0.4, -0.55], [-0.85, 0.5], [-0.85, -0.5]].map(([px, pz], i) => (
+        <mesh key={i} position={[px, 0.28, pz]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.28, 0.28, 0.22, 14]} />
+          <meshStandardMaterial color="#0d1117" roughness={0.85} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 /** AGV — 진행 방향 회전 + 운반 팔레트. */
 function Agv({ data, cs }) {
   const ref = useRef();
@@ -273,6 +374,7 @@ export default function Facility() {
           <DockDoor dock={d} b={b} />
           <Truck dock={d} />
           {d.kind === 'out' && <Staging x={b.stagingX + 1} z={d.z} count={d.staged} cs={cs} />}
+          {d.kind === 'out' && <Forklift dock={d} b={b} cs={cs} />}
         </group>
       ))}
 
