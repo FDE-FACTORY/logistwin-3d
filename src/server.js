@@ -22,9 +22,11 @@ import { simConfig } from './config/sim.config.js';
 import { assembleCore, loadLayoutConfig } from './sim/bootstrap.js';
 import { CommandMode } from './services/dispatcher.js';
 import { Op } from './models/task.js';
+import { OrderType } from './models/order.js';
 import { runSlotting } from './services/slotting.js';
 import { ExceptionManager } from './services/exceptionManager.js';
 import { TmsSimulator } from './services/tmsSimulator.js';
+import { FacilityFlow } from './services/facilityFlow.js';
 import { Rng } from './sim/rng.js';
 import { initDb, recordEvent, closeDb } from './db/db.js';
 
@@ -58,6 +60,9 @@ const tms = new TmsSimulator(new Rng((Number(process.env.SIM_SEED ?? simConfig.s
   count: Number(process.env.TMS_TRUCKS) || 6,
 });
 
+// 물류센터 내부 흐름(P&D → AGV → 출하 도크 → 트럭).
+const facility = new FacilityFlow(activeConfig, { agvCount: Number(process.env.AGV_COUNT) || 3 });
+
 const slimOrder = (o) => ({ id: o.id, type: o.type, sku: o.sku, grade: o.grade, quantity: o.quantity });
 
 const observers = {
@@ -68,6 +73,11 @@ const observers = {
   onComplete: (order, info) => {
     tickDone.push({ id: order.id, type: order.type, crane: info.craneId, cell: info.cellId, cycle: info.cycle });
     recordEvent('done', { id: order.id, type: order.type, crane: info.craneId, cycle: info.cycle }, order.simTick);
+    // 출고 완료 → 통로 P&D에 팔레트 적재(물류 흐름 진입)
+    if (order.type === OrderType.OUTBOUND) {
+      const aisle = parseInt(String(info.craneId).slice(1), 10);
+      facility.onOutbound(aisle);
+    }
   },
   onHandle: (order, cell, op) => {
     cellDeltas.set(cell.id, {
@@ -132,6 +142,7 @@ function buildInit() {
     cranes: dispatcher.cranes.map((c) => c.renderState()),
     exceptions: exceptions.list(),
     tms: tms.snapshot(clock.hourOfDay),
+    facility: facility.snapshot(),
     kpi: kpi.snapshot(generator.jobQueue.length),
   };
 }
@@ -211,6 +222,7 @@ clock.on('tick', ({ tick, virtualTime, hourOfDay }) => {
   }
 
   tms.tick();
+  facility.tick();
 
   io.emit('state', {
     tick,
@@ -223,6 +235,7 @@ clock.on('tick', ({ tick, virtualTime, hourOfDay }) => {
     events: tickEvents,
     exceptions: exceptions.list(),
     tms: tms.snapshot(hourOfDay),
+    facility: facility.snapshot(),
     cycles: dispatcher.totals(),
     kpi: kpi.snapshot(generator.jobQueue.length),
   });

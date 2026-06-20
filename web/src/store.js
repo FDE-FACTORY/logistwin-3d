@@ -27,6 +27,7 @@ export const useStore = create((set, get) => ({
   events: [], // 관제 이벤트 토스트 피드
   exceptions: [], // 활성 예외
   tms: null, // 배송 차량(TMS) 스냅샷
+  facility: null, // 내부 물류 흐름(P&D·AGV·도크)
   kpiHistory: [], // 시계열 표본
   cells: new Map(),
   cellsVersion: 0,
@@ -50,6 +51,7 @@ export const useStore = create((set, get) => ({
       kpi: d.kpi ?? null,
       exceptions: d.exceptions ?? [],
       tms: d.tms ?? null,
+      facility: d.facility ?? null,
       cells,
       cellsVersion: get().cellsVersion + 1,
       virtualTime: d.meta?.virtualTime ?? '--:--:--',
@@ -87,6 +89,7 @@ export const useStore = create((set, get) => ({
       cycles: s.cycles || null,
       exceptions: s.exceptions ?? get().exceptions,
       tms: s.tms ?? get().tms,
+      facility: s.facility ?? get().facility,
       virtualTime: s.virtualTime,
       tick: s.tick,
       orders,

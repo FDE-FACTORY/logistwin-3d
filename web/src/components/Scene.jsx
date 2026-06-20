@@ -5,6 +5,7 @@ import { warehouseExtent } from '../coords.js';
 import { theme } from '../theme.js';
 import Warehouse from './Warehouse.jsx';
 import Crane from './Crane.jsx';
+import Facility from './Facility.jsx';
 
 /** 창고를 원점 중심으로 정렬하는 그룹. */
 function Rig({ ext, children }) {
@@ -24,8 +25,8 @@ export default function Scene() {
   const config = useStore((s) => s.config);
   const cranes = useStore((s) => s.cranes);
   const ext = config ? warehouseExtent(config) : { x: 30, y: 8, z: 20 };
-  // 낮은 3/4 앵글 — 크레인 주행/마스트가 돋보이도록.
-  const cam = [ext.x * 0.42, ext.y * 1.5 + 6, ext.z * 1.35 + 16];
+  // 낮은 3/4 앵글 — 입출하 도크까지 한 화면에.
+  const cam = [ext.x * 0.5 + 8, ext.y * 1.6 + 8, ext.z * 1.5 + 22];
   const shadowS = Math.max(ext.x, ext.z) / 2 + 8;
 
   return (
@@ -68,6 +69,7 @@ export default function Scene() {
             far={ext.y + 4}
           />
           <Warehouse />
+          <Facility />
           {cranes.map((c) => (
             <Crane key={c.id} data={c} />
           ))}
