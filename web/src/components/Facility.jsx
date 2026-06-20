@@ -162,8 +162,8 @@ function Truck({ dock }) {
   if (t.state === 'gone') return null;
   return (
     <group ref={ref} position={[t.x, 0, dock.z]}>
-      {/* 길이축(Z)을 X로 회전, 캡이 -X(외부) 향하고 후면(뒷문)이 도크(+X 원점) 향하도록. */}
-      <group position={[-LEN / 2, 0, 0]} rotation={[0, Math.PI / 2, 0]} scale={S}>
+      {/* 캡 +Z / 후면 −Z 모델 → −90° 회전 시 후면이 +X(도크), 캡이 −X(외부). */}
+      <group position={[-LEN / 2, 0, 0]} rotation={[0, -Math.PI / 2, 0]} scale={S}>
         <primitive object={cloned} />
       </group>
     </group>
