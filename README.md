@@ -3,8 +3,8 @@
 스태커 크레인(AS/RS) 기반 고층 물류창고를 실시간으로 시뮬레이션하고, 3D로 시각화하며,
 ESG·TMS 지표까지 통합 관제하는 디지털 트윈 플랫폼입니다.
 
-> **현재 단계: Phase 1~2 — 3D 랙 스키마 + 주문 엔진 + 크레인 상태 머신 + Dual-Command 최적화 (백엔드 코어)**
-> 전체 문서/다이어그램은 Phase 6에서 정리됩니다.
+> **Phase 1~6 구현 완료** — 백엔드 시뮬레이터 코어 · Dual-Command 최적화 · 3D/2D/지도 뷰 ·
+> 관제 대시보드(적재효율·예외·ESG) · TMS 배송 관제 · 배포 설정. 배포 가이드: [docs/DEPLOY.md](docs/DEPLOY.md)
 
 ---
 
@@ -189,12 +189,13 @@ samples/floorplan.dxf       # 예시 평면도 (80×45m, 임포트 데모용)
 
 ## 로드맵 (이후 단계)
 
-- **Phase 2 (완료)** — ✅ Dual-Command 최적화 · ✅ ESG 에너지 엔진 · ✅ WebSocket 브로드캐스팅
-- **Phase 3 (진행)** — ✅ R3F 3D 디지털 트윈 뷰포트(`web/`): 랙·팔레트·크레인 실시간 렌더 +
-  KPI/ESG HUD · ⬜ 제원별 실사 glTF 크레인 모델(현재 절차적, modelRef로 교체 대비)
-- **Phase 4** — 관제 대시보드 (Slotting 시뮬, 예외 처리, ESG 차트)
-- **Phase 5** — TMS 외부 지도 API 연동 (배송 차량 추적)
-- **Phase 6** — Docker / GitHub Actions 무중단 배포 (Railway/Vercel)
+- **Phase 2 (완료)** — Dual-Command 최적화 · ESG 에너지 엔진 · WebSocket 브로드캐스팅
+- **Phase 3 (완료)** — R3F 3D 디지털 트윈 + 2D 평면도 뷰 + 상세 크레인(절차적, glTF 교체 대비)
+- **Phase 4 (완료)** — 관제 대시보드: 적재 효율화(Slotting)·예외 경보/조치·ESG 추이 차트
+- **Phase 5 (완료)** — TMS 배송 관제: 가상 트럭 추적(Kakao/시뮬 맵) + 위치정보 컴플라이언스
+- **Phase 6 (완료)** — 배포 설정: Dockerfile·Railway·Vercel·GitHub Actions CI · Neon DB(env 게이트)
+
+> 후속 고도화 여지: 제원별 실사 glTF 크레인 모델, Kakao 실지도 키 연동, 라이브 배포.
 
 ## 참고 문헌
 

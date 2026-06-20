@@ -1,0 +1,10 @@
+node_modules
+web
+logs
+generated
+docs
+.git
+.github
+*.md
+.env
+.env.*

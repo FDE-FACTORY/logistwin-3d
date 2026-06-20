@@ -26,6 +26,7 @@ import { runSlotting } from './services/slotting.js';
 import { ExceptionManager } from './services/exceptionManager.js';
 import { TmsSimulator } from './services/tmsSimulator.js';
 import { Rng } from './sim/rng.js';
+import { initDb, recordEvent, closeDb } from './db/db.js';
 
 // ── 설정 ────────────────────────────────────────────────────────
 const PORT = Number(process.env.PORT) || 3001;
@@ -60,9 +61,14 @@ const tms = new TmsSimulator(new Rng((Number(process.env.SIM_SEED ?? simConfig.s
 const slimOrder = (o) => ({ id: o.id, type: o.type, sku: o.sku, grade: o.grade, quantity: o.quantity });
 
 const observers = {
-  onOrder: (order) => tickOrders.push(slimOrder(order)),
-  onComplete: (order, info) =>
-    tickDone.push({ id: order.id, type: order.type, crane: info.craneId, cell: info.cellId, cycle: info.cycle }),
+  onOrder: (order) => {
+    tickOrders.push(slimOrder(order));
+    recordEvent('order', slimOrder(order), order.simTick); // DB(설정 시)
+  },
+  onComplete: (order, info) => {
+    tickDone.push({ id: order.id, type: order.type, crane: info.craneId, cell: info.cellId, cycle: info.cycle });
+    recordEvent('done', { id: order.id, type: order.type, crane: info.craneId, cycle: info.cycle }, order.simTick);
+  },
   onHandle: (order, cell, op) => {
     cellDeltas.set(cell.id, {
       id: cell.id,
@@ -200,6 +206,7 @@ clock.on('tick', ({ tick, virtualTime, hourOfDay }) => {
     if (exc) {
       cellDeltas.set(exc.cellId, { id: exc.cellId, occupied: true, exception: true });
       tickEvents.push({ kind: 'exception', level: 'alarm', msg: `${exc.cellId}에서 ${exc.label} 예외가 발생했습니다.`, tick });
+      recordEvent('exception', exc, tick);
     }
   }
 
@@ -226,10 +233,17 @@ clock.on('tick', ({ tick, virtualTime, hourOfDay }) => {
 });
 clock.start();
 
+// DB(선택) 초기화 — DATABASE_URL 있으면 영속화 활성.
+const db = await initDb().catch((e) => {
+  console.warn(`⚠ DB 초기화 실패(영속화 비활성): ${e.message}`);
+  return { enabled: false };
+});
+
 httpServer.listen(PORT, () => {
   console.log('═'.repeat(64));
   console.log(`▶️  LogisTwin 3D WebSocket 서버  http://localhost:${PORT}`);
   console.log(`   mode=${mode} │ speed=${speed}x │ seed=${seed} │ 크레인 ${craneModel.name} │ 초기재고 ${seededCount}셀`);
+  console.log(`   DB: ${db.enabled ? 'Neon Postgres 영속화 ON' : 'in-memory (DATABASE_URL 미설정)'} │ TMS 트럭 ${tms.trucks.length}대`);
   console.log(`   health: GET /health  │  socket.io: 'init' → 'state'`);
   console.log('═'.repeat(64));
 });
@@ -243,6 +257,7 @@ async function shutdown() {
   clock.stop();
   dispatcher.stop();
   generator.stop();
+  await closeDb();
   io.close();
   httpServer.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 1000).unref();
