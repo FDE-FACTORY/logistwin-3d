@@ -1,9 +1,11 @@
-import { useRef } from 'react';
+import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { Html, useGLTF } from '@react-three/drei';
 import { useStore } from '../store.js';
 import { theme } from '../theme.js';
 import { useTiled } from '../useTiled.js';
+
+useGLTF.preload('/models/truck.glb');
 
 const lerp = (c, t, k) => c + (t - c) * k;
 
@@ -146,59 +148,24 @@ function DockDoor({ dock, b }) {
   );
 }
 
-/** 실사 트럭 — 트레일러 + 캡 + 바퀴. 후면(rearX)이 도크를 향함. */
+/** 실사 트럭(glTF) — 후면이 도크(group 원점, +X)를 향하도록 회전·배치. */
 function Truck({ dock }) {
+  const { scene } = useGLTF('/models/truck.glb');
+  const cloned = useMemo(() => scene.clone(true), [scene]);
   const ref = useRef();
   const t = dock.truck;
-  const TRAILER = 6.6;
-  const CAB = 2.4;
+  const S = 1.5; // 원본 길이 4.87 → ~7.3m
+  const LEN = 4.87 * S;
   useFrame(() => {
     if (ref.current) ref.current.position.x = lerp(ref.current.position.x, t.x, 0.18);
   });
   if (t.state === 'gone') return null;
-  const docked = t.state === 'docked';
   return (
     <group ref={ref} position={[t.x, 0, dock.z]}>
-      {/* 트레일러 박스 (후면이 group 원점=도크쪽) */}
-      <mesh position={[-TRAILER / 2 - 0.1, 1.85, 0]} castShadow receiveShadow>
-        <boxGeometry args={[TRAILER, 2.7, 2.55]} />
-        <meshStandardMaterial color="#d7dade" metalness={0.1} roughness={0.55} />
-      </mesh>
-      {/* 후면 도어(개방 시 안쪽 어둡게) */}
-      <mesh position={[-0.12, 1.85, 0]}>
-        <boxGeometry args={[0.06, 2.5, 2.4]} />
-        <meshStandardMaterial color={docked ? '#0c0f13' : '#b9bcc1'} roughness={0.8} />
-      </mesh>
-      {/* 적재물(만재도) */}
-      {Array.from({ length: Math.min(t.loaded, 6) }).map((_, i) => (
-        <mesh key={i} position={[-0.7 - (i % 3) * 0.9, 1.0 + Math.floor(i / 3) * 0.85, 0]} castShadow>
-          <boxGeometry args={[0.7, 0.7, 1.9]} />
-          <meshStandardMaterial color={theme.load.B} roughness={0.85} />
-        </mesh>
-      ))}
-      {/* 샤시 */}
-      <mesh position={[-TRAILER / 2 - 0.1, 0.7, 0]}>
-        <boxGeometry args={[TRAILER + 0.5, 0.25, 1.0]} />
-        <meshStandardMaterial color="#23282f" metalness={0.4} roughness={0.6} />
-      </mesh>
-      {/* 캡 */}
-      <mesh position={[-TRAILER - CAB / 2, 1.25, 0]} castShadow>
-        <boxGeometry args={[CAB, 2.0, 2.45]} />
-        <meshStandardMaterial color={dock.kind === 'in' ? '#4f5b6b' : '#566173'} metalness={0.3} roughness={0.45} />
-      </mesh>
-      <mesh position={[-TRAILER - CAB + 0.2, 1.6, 0]}>
-        <boxGeometry args={[0.5, 0.8, 2.2]} />
-        <meshStandardMaterial color="#0b1d2e" metalness={0.6} roughness={0.2} />
-      </mesh>
-      {/* 바퀴 */}
-      {[-0.9, -2.2, -TRAILER - 0.5, -TRAILER - CAB + 0.5].map((wx, i) =>
-        [-1.15, 1.15].map((wz, j) => (
-          <mesh key={`${i}-${j}`} position={[wx, 0.5, wz]} rotation={[Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.5, 0.5, 0.32, 16]} />
-            <meshStandardMaterial color="#0d1117" roughness={0.85} />
-          </mesh>
-        )),
-      )}
+      {/* 길이축(Z)을 X로 회전, 캡이 -X(외부) 향하고 후면(뒷문)이 도크(+X 원점) 향하도록. */}
+      <group position={[-LEN / 2, 0, 0]} rotation={[0, Math.PI / 2, 0]} scale={S}>
+        <primitive object={cloned} />
+      </group>
     </group>
   );
 }
