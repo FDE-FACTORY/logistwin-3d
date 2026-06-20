@@ -233,6 +233,34 @@ function Legend() {
   );
 }
 
+/** 층(레벨) 선택기 — 특정 층만 isolate해서 확인 (3D 전용). */
+function FloorSelector() {
+  const config = useStore((s) => s.config);
+  const view = useStore((s) => s.view);
+  const floor = useStore((s) => s.floorFilter);
+  const setFloor = useStore((s) => s.setFloorFilter);
+  if (view !== '3D' || !config) return null;
+  const items = [0, ...Array.from({ length: config.levels }, (_, i) => config.levels - i)];
+  return (
+    <div className="pointer-events-auto absolute left-3 top-1/2 hidden -translate-y-1/2 md:block">
+      <Panel title="층 보기">
+        <div className="flex flex-col gap-1">
+          {items.map((n) => (
+            <button
+              key={n}
+              onClick={() => setFloor(n)}
+              className="tnum rounded px-2.5 py-1 text-xs font-semibold transition"
+              style={floor === n ? { background: theme.info, color: '#06121f' } : { color: theme.textDim }}
+            >
+              {n === 0 ? '전체' : `${n}층`}
+            </button>
+          ))}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
 export default function Hud() {
   const view = useStore((s) => s.view);
   const isWarehouse = view !== 'MAP';
@@ -240,6 +268,7 @@ export default function Hud() {
     <div className="pointer-events-none absolute inset-0" style={{ color: theme.text }}>
       <TopBar />
       <ExceptionAlert />
+      <FloorSelector />
       {isWarehouse && <ControlColumn />}
       {isWarehouse && <WorkLog />}
       {isWarehouse && <Legend />}

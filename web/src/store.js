@@ -16,6 +16,7 @@ const EVENTS_MAX = 50;
 export const useStore = create((set, get) => ({
   connected: false,
   view: '3D',
+  floorFilter: 0, // 0=전체, 1..levels=해당 층만 표시
   config: null,
   craneModelInfo: null,
   cranes: [],
@@ -35,6 +36,7 @@ export const useStore = create((set, get) => ({
 
   setConnected: (v) => set({ connected: v }),
   setView: (v) => set({ view: v }),
+  setFloorFilter: (v) => set({ floorFilter: v }),
   setEmit: (fn) => set({ emit: fn }),
   sendCommand: (cmd) => {
     const fn = get().emit;

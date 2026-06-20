@@ -1,7 +1,7 @@
 import { useRef, useEffect, useMemo, useLayoutEffect } from 'react';
 import * as THREE from 'three';
 import { useStore } from '../store.js';
-import { cellWorldFromId } from '../coords.js';
+import { cellWorldFromId, parseCellId } from '../coords.js';
 import { theme } from '../theme.js';
 import { useTiled } from '../useTiled.js';
 
@@ -123,6 +123,7 @@ function Pallets({ config }) {
   const loadRef = useRef();
   const cells = useStore((s) => s.cells);
   const version = useStore((s) => s.cellsVersion);
+  const floor = useStore((s) => s.floorFilter);
   const cs = config.cellSize;
   const max = config.aisles * 2 * config.baysPerSide * config.levels;
   const woodTex = useTiled('/textures/wood_diff.jpg', '/textures/wood_rough.jpg', 1, 1);
@@ -136,6 +137,10 @@ function Pallets({ config }) {
     let i = 0;
     cells.forEach((v, id) => {
       if (!v.occupied) return;
+      if (floor) {
+        const pc = parseCellId(id);
+        if (pc && pc.level !== floor) return; // 선택 층만 표시
+      }
       const p = cellWorldFromId(config, id);
       if (!p) return;
       const hh = hashId(id);
@@ -162,7 +167,7 @@ function Pallets({ config }) {
     base.instanceMatrix.needsUpdate = true;
     load.instanceMatrix.needsUpdate = true;
     if (load.instanceColor) load.instanceColor.needsUpdate = true;
-  }, [version, config, cells, cs.depth, cs.height, cs.width]);
+  }, [version, config, cells, cs.depth, cs.height, cs.width, floor]);
 
   return (
     <group>

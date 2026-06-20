@@ -75,32 +75,71 @@ function Building({ b }) {
   );
 }
 
-/** 도크 도어(롤러 셔터) + 범퍼 + 도크 레벨러. 트럭 정차 시 셔터 개방. */
+/**
+ * 도크 도어 — 롤러 셔터(애니메이션) + 상단 드럼 + 신호등 + 레벨러 + 범퍼.
+ * 트럭 입차(arriving/docked/departing) 시 셔터가 말려 올라가 개방, 출차 완료(gone) 시 폐쇄.
+ */
 function DockDoor({ dock, b }) {
-  const open = dock.truck.state === 'docked' || dock.truck.state === 'arriving';
+  const shutter = useRef();
+  const pRef = useRef(0);
+  const open = dock.truck.state !== 'gone';
   const col = dock.kind === 'in' ? theme.ok : theme.caution;
+
+  useFrame(() => {
+    pRef.current = lerp(pRef.current, open ? 1 : 0, 0.1);
+    const p = pRef.current;
+    if (shutter.current) {
+      shutter.current.scale.y = 1 - p * 0.84; // 닫힘 1 → 열림 0.16
+      shutter.current.position.y = 1.6 + p * 1.55; // 위로 말려 올라감
+    }
+  });
+
   return (
     <group position={[b.wallX, 0, dock.z]}>
-      {/* 셔터 (개방 시 위로) */}
-      <mesh position={[0.05, open ? 3.4 : 1.6, 0]}>
-        <boxGeometry args={[0.12, open ? 0.6 : 3.0, 2.9]} />
-        <meshStandardMaterial color="#5b6470" metalness={0.3} roughness={0.6} />
+      {/* 문틀 + 컬러 라인 */}
+      <mesh position={[0.12, 1.8, 0]}>
+        <boxGeometry args={[0.16, 3.7, 3.5]} />
+        <meshStandardMaterial color="#2b313a" metalness={0.4} roughness={0.6} />
       </mesh>
-      {/* 문틀 컬러 라인 */}
-      <mesh position={[0.13, 1.8, 0]}>
-        <boxGeometry args={[0.06, 3.4, 3.2]} />
-        <meshStandardMaterial color={col} emissive={col} emissiveIntensity={0.25} toneMapped={false} />
+      <mesh position={[0.2, 1.8, 0]}>
+        <boxGeometry args={[0.05, 3.6, 3.36]} />
+        <meshStandardMaterial color={col} emissive={col} emissiveIntensity={0.3} toneMapped={false} />
+      </mesh>
+      {/* 개구부(어두운 내부) */}
+      <mesh position={[0.02, 1.65, 0]}>
+        <boxGeometry args={[0.05, 3.1, 3.0]} />
+        <meshStandardMaterial color="#090c10" />
+      </mesh>
+      {/* 롤러 셔터(애니메이션) */}
+      <mesh ref={shutter} position={[0.16, 1.6, 0]} castShadow>
+        <boxGeometry args={[0.08, 3.0, 2.92]} />
+        <meshStandardMaterial color="#79818c" metalness={0.55} roughness={0.5} />
+      </mesh>
+      {/* 상단 셔터 드럼 */}
+      <mesh position={[0.18, 3.45, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.17, 0.17, 3.1, 14]} />
+        <meshStandardMaterial color="#3a4250" metalness={0.5} roughness={0.5} />
+      </mesh>
+      {/* 신호등 — 개방(녹)/폐쇄(적) */}
+      <mesh position={[0.22, 2.7, 1.85]}>
+        <sphereGeometry args={[0.11, 12, 12]} />
+        <meshStandardMaterial
+          color={open ? theme.ok : theme.alarm}
+          emissive={open ? theme.ok : theme.alarm}
+          emissiveIntensity={1.2}
+          toneMapped={false}
+        />
       </mesh>
       {/* 도크 레벨러(립) */}
-      <mesh position={[-0.5, 0.55, 0]} rotation={[0, 0, -0.12]}>
-        <boxGeometry args={[1.0, 0.08, 2.4]} />
+      <mesh position={[-0.55, 0.55, 0]} rotation={[0, 0, -0.12]}>
+        <boxGeometry args={[1.1, 0.08, 2.4]} />
         <meshStandardMaterial color="#2d333d" metalness={0.5} roughness={0.5} />
       </mesh>
       {/* 범퍼 */}
-      {[-1.3, 1.3].map((zz, i) => (
-        <mesh key={i} position={[-0.1, 0.5, zz]}>
-          <boxGeometry args={[0.25, 0.5, 0.35]} />
-          <meshStandardMaterial color="#15181d" roughness={0.9} />
+      {[-1.35, 1.35].map((zz, i) => (
+        <mesh key={i} position={[-0.12, 0.5, zz]} castShadow>
+          <boxGeometry args={[0.28, 0.55, 0.36]} />
+          <meshStandardMaterial color="#15181d" roughness={0.95} />
         </mesh>
       ))}
     </group>
