@@ -37,8 +37,8 @@ export default function Scene() {
   const config = useStore((s) => s.config);
   const cranes = useStore((s) => s.cranes);
   const ext = config ? warehouseExtent(config) : { x: 30, y: 8, z: 20 };
-  // 낮은 3/4 앵글 — 입출하 도크(−X)까지 한 화면에.
-  const cam = [ext.x * 0.42, ext.y * 1.8 + 12, ext.z * 1.7 + 30];
+  // 낮은 3/4 앵글 — Z 오프셋을 줄여 통로 깊이가 보이고(크레인 식별), 입출하 도크(−X) 흐름까지 한 화면에.
+  const cam = [ext.x * 0.5 + 5, ext.y * 1.95 + 13, ext.z * 1.15 + 24];
   const shadowS = Math.max(ext.x, ext.z) / 2 + 16;
 
   return (
@@ -93,7 +93,7 @@ export default function Scene() {
 
       <OrbitControls
         makeDefault
-        target={[-6, ext.y * 0.3, 0]}
+        target={[-7, ext.y * 0.32, ext.z * 0.12]}
         maxPolarAngle={Math.PI / 2.05}
         enableDamping
         dampingFactor={0.09}

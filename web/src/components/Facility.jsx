@@ -1,4 +1,5 @@
 import { useRef, useMemo } from 'react';
+import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Html, useGLTF } from '@react-three/drei';
 import { useStore } from '../store.js';
@@ -148,10 +149,25 @@ function DockDoor({ dock, b }) {
   );
 }
 
+// 함대 색상 변주 — 동일 밴이 줄지어 선 인상을 피하려고 도크별로 차체에 옅은 톤을 곱함.
+// (텍스처가 흰 차체를 곱연산으로 물들임 → 무채/연톤 운송사 도장 느낌.)
+const FLEET_TINTS = ['#ffffff', '#c4ced9', '#aebccb', '#d6c6a8', '#b9c7bd', '#cdb6b0'];
+
 /** 실사 트럭(glTF) — 후면이 도크(group 원점, +X)를 향하도록 회전·배치. */
 function Truck({ dock }) {
   const { scene } = useGLTF('/models/truck.glb');
-  const cloned = useMemo(() => scene.clone(true), [scene]);
+  const cloned = useMemo(() => {
+    const c = scene.clone(true);
+    const idx = parseInt(String(dock.id).replace(/\D/g, ''), 10) || 0;
+    const tint = new THREE.Color(FLEET_TINTS[idx % FLEET_TINTS.length]);
+    c.traverse((o) => {
+      if (o.isMesh && o.material?.color) {
+        o.material = o.material.clone();
+        o.material.color.multiply(tint);
+      }
+    });
+    return c;
+  }, [scene, dock.id]);
   const ref = useRef();
   const t = dock.truck;
   const S = 1.5; // 원본 길이 4.87 → ~7.3m

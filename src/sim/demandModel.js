@@ -35,9 +35,10 @@ export class DemandModel {
     const tickFractionOfMinute = this.cfg.tickMs / 60_000;
     const lambda = this.cfg.baseArrivalPerMin * tickFractionOfMinute * profile.load;
 
-    // 적재율 피드백 — 가득 차면 출고 우세, 비면 입고 우세 (목표 ~50% 밴드).
-    // 현실 WMS의 입고 스로틀/출고 가속을 반영하며, 창고가 포화/고갈되지 않게 유지.
-    const inRatio = Math.min(0.9, Math.max(0.1, profile.inRatio + (0.5 - fillRate) * 0.9));
+    // 적재율 피드백 — 가득 차면 출고 우세, 비면 입고 우세 (목표 ~40% 밴드).
+    // 현실 WMS의 입고 스로틀/출고 가속을 반영하며, 창고가 포화되지 않아 랙 구조·크레인 작업이
+    // 기본 뷰에서도 보이게 유지(디지털 트윈 가독성).
+    const inRatio = Math.min(0.9, Math.max(0.1, profile.inRatio + (0.4 - fillRate) * 1.1));
 
     const count = this.rng.poisson(lambda);
     const intents = [];
