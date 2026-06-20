@@ -1,7 +1,7 @@
 import { Suspense, useMemo } from 'react';
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, ContactShadows, useTexture } from '@react-three/drei';
+import { OrbitControls, ContactShadows, useTexture, Environment } from '@react-three/drei';
 import { EffectComposer, N8AO, Bloom, SMAA, ToneMapping } from '@react-three/postprocessing';
 import { useStore } from '../store.js';
 import { warehouseExtent } from '../coords.js';
@@ -48,16 +48,17 @@ export default function Scene() {
       camera={{ position: cam, fov: 48, far: 6000 }}
       gl={{ antialias: true, toneMappingExposure: 1.15 }}
     >
-      <color attach="background" args={['#12161b']} />
-      <fog attach="fog" args={['#12161b', ext.z * 2 + 60, ext.z * 5 + 200]} />
+      {/* 창고 내부 HDRI — 이미지 기반 조명(IBL) + 배경 */}
+      <Suspense fallback={null}>
+        <Environment files="/hdri/empty_warehouse_01.hdr" background backgroundBlurriness={0.55} environmentIntensity={1.05} />
+      </Suspense>
 
-      {/* 산업 조명: 따뜻한 키(그림자) + 반구 채움 + 중성 림 */}
-      <ambientLight intensity={0.46} />
-      <hemisphereLight args={['#d2ccbb', '#16181d', 0.5]} />
+      {/* 그림자용 키 라이트(HDRI는 부드러운 채움, 직사광 그림자는 별도) */}
+      <ambientLight intensity={0.12} />
       <directionalLight
         position={[ext.x * 0.8, ext.y * 3 + 28, ext.z * 0.7]}
-        intensity={1.5}
-        color="#fff2df"
+        intensity={1.15}
+        color="#fff3e2"
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0004}
@@ -68,7 +69,6 @@ export default function Scene() {
         shadow-camera-top={shadowS}
         shadow-camera-bottom={-shadowS}
       />
-      <directionalLight position={[-ext.x * 0.6, ext.y * 1.8, -ext.z * 0.8]} intensity={0.3} color="#9fb0c8" />
 
       {config && (
         <Suspense fallback={null}>
