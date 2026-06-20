@@ -1,7 +1,31 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { Html } from '@react-three/drei';
 import { useStore } from '../store.js';
 import { theme } from '../theme.js';
+
+/** 3D 구역 라벨 (DOM 오버레이 — 폰트 페치 없음). */
+function ZoneLabel({ pos, text, color }) {
+  return (
+    <Html position={pos} center distanceFactor={42} zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
+      <div
+        style={{
+          background: 'rgba(13,17,23,0.82)',
+          border: `1px solid ${color}`,
+          color: '#dfe5ec',
+          padding: '2px 9px',
+          borderRadius: 4,
+          fontSize: 12,
+          fontWeight: 600,
+          whiteSpace: 'nowrap',
+          letterSpacing: '0.02em',
+        }}
+      >
+        {text}
+      </div>
+    </Html>
+  );
+}
 
 /** 박스 트럭 (캡 + 화물칸 + 바퀴). departProgress로 출발 애니메이션. */
 function Truck({ x, z, color = '#3a4658', departProgress = 0 }) {
@@ -78,9 +102,16 @@ export default function Facility() {
 
   if (!facility || !config) return null;
   const cs = config.cellSize;
+  const midZ = facility.lane.z1 / 2;
+  const rackTop = config.levels * cs.height;
 
   return (
     <group>
+      {/* 구역 라벨 */}
+      <ZoneLabel pos={[facility.inDock.x, 3, facility.inDock.z]} text="입고 도크" color={theme.ok} />
+      <ZoneLabel pos={[facility.outDock.x, 3, facility.outDock.z]} text="출하 도크" color={theme.caution} />
+      <ZoneLabel pos={[(config.baysPerSide * cs.width) / 2, rackTop + 1.8, midZ]} text="AS/RS 보관" color={theme.info} />
+      <ZoneLabel pos={[facility.lane.x, 1.6, midZ]} text="반송 AGV" color={theme.crane.RETURNING} />
       {/* 전면 반송 레인 */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
