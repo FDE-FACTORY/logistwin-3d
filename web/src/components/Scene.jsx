@@ -20,6 +20,10 @@ function computeGoal(focus, ext, config) {
   if (focus === 'dock') {
     return { pos: [-ext.x * 0.5 - 28, 6.5, 5], target: [-ext.x * 0.5 - 12.5, 3, 0] };
   }
+  if (focus === 'staging') {
+    // 내부에서 스테이징·상차(지게차·트럭 후면)를 들여다봄.
+    return { pos: [-ext.x * 0.5 + 5, 5.5, ext.z * 0.5 + 6], target: [-ext.x * 0.5 - 9, 1.8, ext.z * 0.15] };
+  }
   if (focus && focus.startsWith('aisle:') && config) {
     const n = parseInt(focus.split(':')[1], 10);
     const z = (n - 1) * config.aisleSpacing + config.cellSize.depth / 2 - ext.z / 2;

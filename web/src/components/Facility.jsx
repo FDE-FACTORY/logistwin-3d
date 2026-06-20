@@ -1,6 +1,7 @@
 import { useRef, useMemo } from 'react';
+import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { Html, RoundedBox } from '@react-three/drei';
+import { Html, RoundedBox, useGLTF } from '@react-three/drei';
 import { useStore } from '../store.js';
 import { theme } from '../theme.js';
 import { useTiled } from '../useTiled.js';
@@ -342,103 +343,72 @@ function Truck({ dock }) {
   );
 }
 
-/** 지게차 — 도크에서 스테이징↔트럭 상차 작업(프론트 애니메이션). */
+useGLTF.preload('/models/forklift.glb');
+// 지게차 모델 보정 — 런타임 바운딩박스로 자동 스케일·접지(원본 변환 불문). 방향은 캡처로 튜닝.
+const FORKLIFT_ROT = Math.PI / 2; // 포크가 트럭(−X)을 향하도록 회전(필요시 조정)
+const FORKLIFT_LEN = 2.7; // 목표 전장(m)
+
+/** 지게차 — glTF 실사 모델 + 스테이징↔트럭 상차 주행. */
 function Forklift({ dock, b, cs }) {
+  const { scene } = useGLTF('/models/forklift.glb');
+  const model = useMemo(() => {
+    const c = scene.clone(true);
+    const box = new THREE.Box3().setFromObject(c);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    const s = FORKLIFT_LEN / Math.max(size.x, size.z, 0.001);
+    c.scale.setScalar(s);
+    c.position.set(-center.x * s, -box.min.y * s, -center.z * s); // 중심 정렬 + 바닥 접지
+    c.traverse((o) => {
+      if (o.isMesh) o.castShadow = true;
+    });
+    return c;
+  }, [scene]);
   const ref = useRef();
-  const forks = useRef();
   const pallet = useRef();
   const phase = useRef(0);
   const active = dock.kind === 'out' && dock.truck.state === 'docked';
   const x0 = b.stagingX + 2; // 스테이징 측
+
   useFrame((_, dt) => {
     const g = ref.current;
     if (!g) return;
     if (!active) {
-      // 대기: 스테이징 옆에 정차, 포크 하강
       g.position.x = lerp(g.position.x, x0, 0.05);
-      if (forks.current) forks.current.position.y = lerp(forks.current.position.y, 0.25, 0.1);
       if (pallet.current) pallet.current.visible = false;
       return;
     }
-    phase.current = (phase.current + dt * 0.22) % 1;
+    phase.current = (phase.current + dt * 0.2) % 1;
     const p = phase.current;
-    const x1 = dock.truck.x + 1.6; // 트럭 후면 직전(스테이징 측)
+    const x1 = dock.truck.x + 1.8; // 트럭 후면 직전
     let x = x0;
-    let fy = 0.25;
     let carry = false;
-    if (p < 0.4) {
-      const u = p / 0.4;
-      x = x0 + (x1 - x0) * u;
-      fy = 0.4;
+    if (p < 0.45) {
+      x = x0 + (x1 - x0) * (p / 0.45);
       carry = true;
-    } else if (p < 0.52) {
+    } else if (p < 0.55) {
       x = x1;
-      fy = 0.4 + ((p - 0.4) / 0.12) * 1.1; // 트럭 안으로 들어올림
       carry = true;
-    } else if (p < 0.9) {
-      const u = (p - 0.52) / 0.38;
-      x = x1 + (x0 - x1) * u;
-      fy = 0.25;
+    } else if (p < 0.95) {
+      x = x1 + (x0 - x1) * ((p - 0.55) / 0.4);
       carry = false;
     }
     g.position.x = x;
-    if (forks.current) forks.current.position.y = fy;
     if (pallet.current) pallet.current.visible = carry;
   });
 
   return (
-    <group ref={ref} position={[x0, 0, dock.z + 0.6]} rotation={[0, Math.PI, 0]}>
-      {/* 카운터웨이트 바디 (forks가 로컬+X → 회전으로 트럭(-X) 향함) */}
-      <mesh position={[-0.5, 0.55, 0]} castShadow>
-        <boxGeometry args={[1.3, 0.9, 1.0]} />
-        <meshStandardMaterial color="#c8761e" metalness={0.3} roughness={0.55} />
-      </mesh>
-      {/* 운전석 + 오버헤드 가드 */}
-      <mesh position={[-0.55, 1.0, 0]}>
-        <boxGeometry args={[0.5, 0.3, 0.7]} />
-        <meshStandardMaterial color="#1c2128" roughness={0.7} />
-      </mesh>
-      {[[-0.95, 0.45], [-0.1, 0.45], [-0.95, -0.45], [-0.1, -0.45]].map(([px, pz], i) => (
-        <mesh key={i} position={[px, 1.4, pz]}>
-          <boxGeometry args={[0.06, 0.9, 0.06]} />
-          <meshStandardMaterial color="#2a2f37" metalness={0.5} roughness={0.5} />
-        </mesh>
-      ))}
-      <mesh position={[-0.5, 1.85, 0]}>
-        <boxGeometry args={[0.95, 0.06, 1.0]} />
-        <meshStandardMaterial color="#2a2f37" metalness={0.5} roughness={0.5} />
-      </mesh>
-      {/* 마스트 (앞쪽 +X) */}
-      {[-0.18, 0.18].map((pz, i) => (
-        <mesh key={i} position={[0.45, 1.2, pz]} castShadow>
-          <boxGeometry args={[0.1, 2.3, 0.1]} />
-          <meshStandardMaterial color="#3a4250" metalness={0.5} roughness={0.45} />
-        </mesh>
-      ))}
-      {/* 포크(승강) */}
-      <group ref={forks} position={[0, 0.25, 0]}>
-        <mesh position={[0.55, 0, 0]}>
-          <boxGeometry args={[0.12, 0.5, 0.9]} />
-          <meshStandardMaterial color="#22272e" metalness={0.5} roughness={0.5} />
-        </mesh>
-        {[-0.28, 0.28].map((pz, i) => (
-          <mesh key={i} position={[1.05, -0.18, pz]} castShadow>
-            <boxGeometry args={[0.95, 0.06, 0.12]} />
-            <meshStandardMaterial color="#15181d" metalness={0.6} roughness={0.4} />
-          </mesh>
-        ))}
-        <mesh ref={pallet} position={[1.1, 0.12, 0]} visible={false} castShadow>
-          <boxGeometry args={[cs.width * 0.7, cs.height * 0.5, cs.depth * 0.7]} />
-          <meshStandardMaterial color={theme.load.A} roughness={0.85} />
-        </mesh>
+    <group ref={ref} position={[x0, 0, dock.z + 0.6]}>
+      <group rotation={[0, FORKLIFT_ROT, 0]}>
+        <primitive object={model} />
       </group>
-      {/* 바퀴 */}
-      {[[0.4, 0.55], [0.4, -0.55], [-0.85, 0.5], [-0.85, -0.5]].map(([px, pz], i) => (
-        <mesh key={i} position={[px, 0.28, pz]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.28, 0.28, 0.22, 14]} />
-          <meshStandardMaterial color="#0d1117" roughness={0.85} />
-        </mesh>
-      ))}
+      {/* 운반 팔레트(포크 위, 트럭 방향 −X) */}
+      <mesh ref={pallet} position={[-1.05, 0.55, 0]} visible={false} castShadow>
+        <boxGeometry args={[cs.width * 0.7, cs.height * 0.5, cs.depth * 0.7]} />
+        <meshStandardMaterial color={theme.load.A} roughness={0.85} />
+      </mesh>
     </group>
   );
 }

@@ -71,9 +71,21 @@ function GltfCrane({ data, config, modelRef }) {
     beacon.scale.setScalar(1.8);
   }
 
+  // 가시성 마스트 + 상단 비콘 — 랙 상단 위로 돌출시켜 전경/통로 어느 각도에서나 크레인 위치·상태 식별.
+  const lv = config.levels;
+  const stateColor = STATE_COLOR[data.state] || theme.crane.IDLE;
+
   return (
     <group ref={group} scale={[s, s, s]}>
       <primitive object={cloned} />
+      <mesh position={[0, lv * 0.58, 0]}>
+        <boxGeometry args={[0.16, lv * 1.16, 0.16]} />
+        <meshStandardMaterial color="#aeb7c4" metalness={0.5} roughness={0.45} />
+      </mesh>
+      <mesh position={[0, lv + 1.3, 0]}>
+        <sphereGeometry args={[0.46, 18, 18]} />
+        <meshStandardMaterial color={stateColor} emissive={stateColor} emissiveIntensity={3.2} toneMapped={false} />
+      </mesh>
     </group>
   );
 }

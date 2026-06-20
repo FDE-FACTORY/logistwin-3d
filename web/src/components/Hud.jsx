@@ -251,8 +251,8 @@ function InspectorPanel() {
         <div className="space-y-2.5" style={{ width: 138 }}>
           <div>
             <Label>카메라</Label>
-            <div className="mt-1 flex gap-1">
-              {[['overview', '전경'], ['dock', '도크']].map(([k, l]) => (
+            <div className="mt-1 grid grid-cols-3 gap-1">
+              {[['overview', '전경'], ['dock', '도크'], ['staging', '상차장']].map(([k, l]) => (
                 <button
                   key={k}
                   onClick={() => setFocus(k)}
