@@ -2,23 +2,26 @@
  * 물류센터 내부 물류 흐름(Material Flow) 시뮬레이터 — 대형 DC 기준.
  *
  *   크레인 출고 완료 → 통로 앞 P&D 적재
- *     → AGV(로봇 대차)가 진행 방향으로 전면 레인을 따라 출하 도크 스테이징으로 운반
- *     → 도크에 후진 정차한 트럭이 후방 상차 → 만재 시 전진 출발(배송)
+ *     → 출고 컨베이어가 전면 레인을 따라 출하 도크 스테이징으로 이송(끊김 없는 흐름)
+ *     → 지게차가 스테이징에서 트럭으로 상차
+ *     → 도크에 후진 정차한 트럭이 만재 시 전진 출발(배송)
  *   입고 도크: 트럭이 후진 입차 → 하차 → 출차.
  *
  * 좌표는 창고 로컬(미터). 도크는 -X 외벽에 여러 개(다중 도크), 트럭은 외벽 밖에서 후진 입차.
  */
 const r2 = (n) => Math.round(n * 100) / 100;
+const GRADES = ['A', 'B', 'C'];
 
 export class FacilityFlow {
-  constructor(config, { agvCount = 4, truckCapacity = 8 } = {}) {
+  constructor(config, { truckCapacity = 8 } = {}) {
     this.cfg = config;
     const cs = config.cellSize;
     this.extentZ = (config.aisles - 1) * config.aisleSpacing + cs.depth;
 
-    this.laneX = -2.8; // 전면 반송 레인
+    this.laneX = -2.8; // 전면 출고 컨베이어(메인 라인)
     this.stagingX = -9.5; // 도크 내부 스테이징
     this.wallX = -12.5; // 도크 외벽(트레일러 후면이 붙는 위치)
+    this.pndX = -0.6; // 통로 앞 P&D(크레인 인출 지점, 컨베이어 진입부)
     this.truckDockedX = this.wallX + 0.8; // 트레일러 후면이 도크 도어에 밀착(약간 안쪽)
     this.truckArriveX = this.wallX - 26; // 입차 시작(후진)
     this.truckGoneX = this.wallX - 40; // 출차 종료(전진)
@@ -41,19 +44,15 @@ export class FacilityFlow {
     this.outDocks = this.docks.filter((d) => d.kind === 'out');
     this.inDocks = this.docks.filter((d) => d.kind === 'in');
 
-    this.pnd = new Array(config.aisles).fill(0);
+    this.pnd = new Array(config.aisles).fill(0); // 통로별 P&D 대기 수(크레인이 내려놓음)
     this.truckCapacity = truckCapacity;
-    this.agvs = Array.from({ length: agvCount }, (_, i) => ({
-      id: `AGV-${String(i + 1).padStart(2, '0')}`,
-      x: this.stagingX,
-      z: 2 + i * 2.0,
-      heading: 0,
-      carrying: false,
-      state: 'idle',
-      route: null,
-      seg: 0,
-    }));
-    this.agvSpeed = 1.25;
+
+    // 출고 컨베이어를 타고 이동 중인 팔레트.
+    this.items = [];
+    this._itemSeq = 0;
+    this.conveyorSpeed = 0.9;
+    this.maxItems = 80;
+    this.stagingCap = 9; // 스테이징 적치 한도
 
     this.delivered = 0;
     this.received = 0;
@@ -68,62 +67,71 @@ export class FacilityFlow {
     if (aisle >= 1 && aisle <= this.cfg.aisles) this.pnd[aisle - 1] += 1;
   }
 
-  _assign(agv) {
-    let best = -1;
-    let bestQ = 0;
-    for (let a = 0; a < this.pnd.length; a++) {
-      if (this.pnd[a] > bestQ) {
-        bestQ = this.pnd[a];
-        best = a;
-      }
-    }
-    if (best < 0) return false;
-    // 목적 출하 도크 — 정차 트럭이 있고 스테이징이 적은 곳, 없으면 가장 가까운 도크.
-    const az = this.aisleZ(best + 1);
+  /** 출고 컨베이어 목적 도크 선택 — 정차 트럭이 있고 여유 있는 출하 도크, 없으면 가장 가까운 곳. */
+  _targetDock(az) {
+    if (this.outDocks.length === 0) return null;
     let target = this.outDocks.find((d) => d.truck.state === 'docked' && d.staged < this.truckCapacity);
-    if (!target) target = this.outDocks.reduce((m, d) => (Math.abs(d.z - az) < Math.abs(m.z - az) ? d : m), this.outDocks[0]);
-    if (!target) return false;
-    this.pnd[best] -= 1;
-    agv.route = [
-      { x: this.laneX, z: agv.z },
-      { x: this.laneX, z: az },
-      { x: -0.4, z: az, pick: true }, // 통로 앞 P&D
-      { x: this.laneX, z: az },
-      { x: this.laneX, z: target.z },
-      { x: this.stagingX, z: target.z, drop: target }, // 도크 스테이징 하역
-    ];
-    agv.seg = 0;
-    agv.state = 'toPick';
-    return true;
+    if (!target) {
+      target = this.outDocks.reduce(
+        (m, d) => (Math.abs(d.z - az) < Math.abs(m.z - az) ? d : m),
+        this.outDocks[0],
+      );
+    }
+    return target;
   }
 
-  _tickAgvs() {
-    for (const agv of this.agvs) {
-      if (!agv.route && !this._assign(agv)) continue;
-      const to = agv.route[agv.seg];
-      const dx = to.x - agv.x;
-      const dz = to.z - agv.z;
+  /** P&D 대기 팔레트를 컨베이어에 투입 + 컨베이어 위 팔레트 전진. */
+  _tickConveyor() {
+    // 1) 투입 — 진입부가 비어 있으면 P&D에서 한 팔레트를 컨베이어로.
+    for (let a = 0; a < this.pnd.length; a++) {
+      if (this.pnd[a] <= 0 || this.items.length >= this.maxItems) continue;
+      const az = this.aisleZ(a + 1);
+      // 같은 통로 진입부 근처(스퍼)가 비어 있어야 투입(간격 유지).
+      const busy = this.items.some(
+        (it) => it.seg <= 1 && it.aisle === a + 1 && Math.hypot(it.x - this.pndX, it.z - az) < 1.4,
+      );
+      if (busy) continue;
+      const target = this._targetDock(az);
+      if (!target) continue;
+      this.pnd[a] -= 1;
+      this._itemSeq += 1;
+      this.items.push({
+        id: `PLT-${this._itemSeq}`,
+        aisle: a + 1,
+        grade: GRADES[this._itemSeq % 3],
+        x: this.pndX,
+        z: az,
+        seg: 0,
+        wps: [
+          { x: this.laneX, z: az }, // 스퍼 → 메인 라인 합류
+          { x: this.laneX, z: target.z }, // 메인 라인 주행(도크 z로)
+          { x: this.stagingX, z: target.z }, // 스테이징 진입
+        ],
+        target,
+      });
+    }
+
+    // 2) 전진.
+    for (const it of this.items) {
+      const wp = it.wps[it.seg];
+      const dx = wp.x - it.x;
+      const dz = wp.z - it.z;
       const dist = Math.hypot(dx, dz);
-      if (dist > 0.001) agv.heading = Math.atan2(dx, dz); // 진행 방향(+X 기준)
-      if (dist <= this.agvSpeed) {
-        agv.x = to.x;
-        agv.z = to.z;
-        if (to.pick) agv.carrying = true;
-        if (to.drop) {
-          agv.carrying = false;
-          to.drop.staged += 1;
-        }
-        agv.seg += 1;
-        if (agv.seg >= agv.route.length) {
-          agv.route = null;
-          agv.state = 'idle';
+      if (dist <= this.conveyorSpeed) {
+        it.x = wp.x;
+        it.z = wp.z;
+        it.seg += 1;
+        if (it.seg >= it.wps.length) {
+          // 스테이징 도착 — 적치(한도 내).
+          if (it.target.staged < this.stagingCap) it.target.staged += 1;
+          it._done = true;
         }
       } else {
-        agv.x += (dx / dist) * this.agvSpeed;
-        agv.z += (dz / dist) * this.agvSpeed;
-        agv.state = agv.carrying ? 'haul' : 'toPick';
+        it.x += (dx / dist) * this.conveyorSpeed;
+        it.z += (dz / dist) * this.conveyorSpeed;
       }
     }
+    this.items = this.items.filter((it) => !it._done);
   }
 
   _tickTruck(dock) {
@@ -131,7 +139,6 @@ export class FacilityFlow {
     const backSpeed = 1.6;
     if (t.state === 'gone') {
       t.gap -= 1;
-      // 출하: 스테이징 있으면 호출 / 입고: 주기적으로 호출
       const demand = dock.kind === 'out' ? dock.staged > 0 || t.loaded > 0 : t.gap <= 0;
       if (t.gap <= 0 && (dock.kind === 'in' || demand)) {
         t.state = 'arriving';
@@ -150,16 +157,14 @@ export class FacilityFlow {
     } else if (t.state === 'docked') {
       t.t += 1;
       if (dock.kind === 'out') {
-        if (dock.staged > 0 && t.loaded < this.truckCapacity && t.t % 3 === 0) {
+        // 지게차 상차 — 스테이징에서 한 팔레트씩 트럭으로.
+        if (dock.staged > 0 && t.loaded < this.truckCapacity && t.t % 4 === 0) {
           dock.staged -= 1;
           t.loaded += 1;
           this.loadedTotal += 1;
         }
-        if (t.loaded >= this.truckCapacity) {
-          t.state = 'departing';
-        }
+        if (t.loaded >= this.truckCapacity) t.state = 'departing';
       } else {
-        // 입고 하차
         if (t.loaded > 0 && t.t % 3 === 0) t.loaded -= 1;
         if (t.loaded <= 0 && t.t > 12) {
           this.received += 1;
@@ -174,14 +179,13 @@ export class FacilityFlow {
         t.x = this.truckGoneX;
         t.loaded = 0;
         t.t = 0;
-        t.gap = 18 + Math.floor(Math.random() * 0); // 결정론 유지(랜덤 0)
         t.gap = 24;
       }
     }
   }
 
   tick() {
-    this._tickAgvs();
+    this._tickConveyor();
     for (const d of this.docks) this._tickTruck(d);
   }
 
@@ -191,6 +195,7 @@ export class FacilityFlow {
         wallX: this.wallX,
         stagingX: this.stagingX,
         laneX: this.laneX,
+        pndX: this.pndX,
         z0: -2,
         z1: this.extentZ + 2,
         rackW: this.cfg.baysPerSide * this.cfg.cellSize.width,
@@ -203,14 +208,7 @@ export class FacilityFlow {
         staged: d.staged,
         truck: { state: d.truck.state, x: r2(d.truck.x), loaded: d.truck.loaded, capacity: this.truckCapacity },
       })),
-      agvs: this.agvs.map((a) => ({
-        id: a.id,
-        x: r2(a.x),
-        z: r2(a.z),
-        heading: r2(a.heading),
-        carrying: a.carrying,
-        state: a.state,
-      })),
+      conveyor: this.items.map((it) => ({ id: it.id, x: r2(it.x), z: r2(it.z), grade: it.grade })),
       pnd: this.pnd.map((q, i) => ({ aisle: i + 1, q })),
       metrics: { delivered: this.delivered, received: this.received, loadedTotal: this.loadedTotal },
     };

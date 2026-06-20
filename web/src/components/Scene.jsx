@@ -1,6 +1,6 @@
-import { Suspense, useMemo } from 'react';
+import { Suspense, useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, ContactShadows, useTexture, Environment } from '@react-three/drei';
 import { EffectComposer, N8AO, Bloom, SMAA, ToneMapping } from '@react-three/postprocessing';
 import { useStore } from '../store.js';
@@ -13,6 +13,54 @@ import Facility from './Facility.jsx';
 /** 창고를 원점 중심으로 정렬하는 그룹. */
 function Rig({ ext, children }) {
   return <group position={[-ext.x / 2, 0, -ext.z / 2]}>{children}</group>;
+}
+
+/** 카메라 프리셋 목표(월드 좌표). 콘텐츠는 Rig로 원점 중심 정렬됨. */
+function computeGoal(focus, ext, config) {
+  if (focus === 'dock') {
+    return { pos: [-ext.x * 0.5 - 28, 6.5, 5], target: [-ext.x * 0.5 - 12.5, 3, 0] };
+  }
+  if (focus && focus.startsWith('aisle:') && config) {
+    const n = parseInt(focus.split(':')[1], 10);
+    const z = (n - 1) * config.aisleSpacing + config.cellSize.depth / 2 - ext.z / 2;
+    // 통로 앞(−X)에서 +X 방향으로 통로를 따라 들여다봄 → 랙 사이 크레인/팔레트가 보임.
+    return { pos: [-ext.x * 0.5 - 4.5, ext.y * 0.52, z], target: [ext.x * 0.5 - 3, ext.y * 0.42, z] };
+  }
+  // overview
+  return { pos: [ext.x * 0.5 + 5, ext.y * 1.95 + 13, ext.z * 1.15 + 24], target: [-7, ext.y * 0.32, ext.z * 0.12] };
+}
+
+/** 프리셋 변경 시 카메라+타깃을 부드럽게 이동(이후 수동 오르빗 가능). */
+function CameraRig({ ext }) {
+  const focus = useStore((s) => s.cameraFocus);
+  const seq = useStore((s) => s.focusSeq);
+  const config = useStore((s) => s.config);
+  const controls = useThree((s) => s.controls);
+  const camera = useThree((s) => s.camera);
+  const anim = useRef(null);
+  useEffect(() => {
+    if (!controls || !camera) return;
+    const g = computeGoal(focus, ext, config);
+    anim.current = {
+      fromPos: camera.position.clone(),
+      fromTgt: controls.target.clone(),
+      toPos: new THREE.Vector3(...g.pos),
+      toTgt: new THREE.Vector3(...g.target),
+      t: 0,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seq]);
+  useFrame((_, dt) => {
+    const a = anim.current;
+    if (!a || !controls) return;
+    a.t = Math.min(1, a.t + dt / 1.1);
+    const k = a.t < 0.5 ? 2 * a.t * a.t : 1 - Math.pow(-2 * a.t + 2, 2) / 2; // easeInOutQuad
+    camera.position.lerpVectors(a.fromPos, a.toPos, k);
+    controls.target.lerpVectors(a.fromTgt, a.toTgt, k);
+    controls.update();
+    if (a.t >= 1) anim.current = null;
+  });
+  return null;
 }
 
 function Floor({ ext }) {
@@ -103,6 +151,7 @@ export default function Scene() {
         minDistance={4}
         maxDistance={Math.max(ext.x, ext.z) * 3 + 80}
       />
+      <CameraRig ext={ext} />
 
       {/* 포스트프로세싱 — 앰비언트 오클루전(접지·입체감) + 블룸 + AA */}
       <EffectComposer disableNormalPass multisampling={0}>

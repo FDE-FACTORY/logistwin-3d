@@ -1,6 +1,6 @@
 import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { Html, RoundedBox } from '@react-three/drei';
 import { useStore } from '../store.js';
 import { theme } from '../theme.js';
 import { useTiled } from '../useTiled.js';
@@ -190,93 +190,154 @@ function DockDoor({ dock, b }) {
 const FLEET_TINTS = ['#e7eaee', '#c4ced9', '#9fb0c2', '#d6c6a8', '#a9bcb0', '#cdb6b0'];
 
 /**
- * 절차적 박스 카고 트럭 — 적재함(후면 도어)이 도크(group +X)를 향해 후진 입차.
- * 소형 밴이 아닌 물류센터 규격의 윙바디/박스 트럭 형상(현실고증).
+ * 박스 카고 트럭 — 적재함(후면 양면 스윙 도어)이 도크(group +X)로 후진 입차.
+ * 라운드 형상 + 캡/범퍼/미러/휠 디테일(레고 탈피). 도킹 시 후면 도어가 양옆으로 개방.
  */
 function Truck({ dock }) {
   const ref = useRef();
+  const doorL = useRef();
+  const doorR = useRef();
+  const dp = useRef(0);
   const t = dock.truck;
   const idx = parseInt(String(dock.id).replace(/\D/g, ''), 10) || 0;
   const body = FLEET_TINTS[idx % FLEET_TINTS.length];
+
+  // 로컬 +X = 후면(도크), −X = 캡(외부).
+  const boxLen = 6.2;
+  const boxW = 2.5;
+  const boxH = 2.7;
+  const bedH = 1.0;
+  const cabLen = 2.0;
+  const cabH = 2.0;
+  const gap = 0.12;
+  const cabFront = -(boxLen + gap + cabLen);
+  const boxCY = bedH + boxH / 2;
+  const wz = boxW / 2 - 0.16;
+  const doorH = boxH - 0.18;
+  const doorW = boxW / 2 - 0.04;
+
   useFrame(() => {
     if (ref.current) ref.current.position.x = lerp(ref.current.position.x, t.x, 0.18);
+    const open = t.state === 'docked' ? 1 : 0; // 도킹 시 후면 도어 개방
+    dp.current = lerp(dp.current, open, 0.07);
+    const a = dp.current * 1.75; // ~100° → 도어가 적재함 양 측면으로 접힘
+    if (doorR.current) doorR.current.rotation.y = a;
+    if (doorL.current) doorL.current.rotation.y = -a;
   });
   if (t.state === 'gone') return null;
 
-  // 로컬 +X = 후면(도크), −X = 캡(외부).
-  const boxLen = 6.4;
-  const boxW = 2.5;
-  const boxH = 2.7;
-  const bedH = 0.95; // 적재함 바닥 높이
-  const cabLen = 2.2;
-  const cabH = 2.0;
-  const gap = 0.25;
-  const cabFront = -(boxLen + gap + cabLen); // 캡 앞면 x
-  const boxCY = bedH + boxH / 2;
-  const wheelZ = boxW / 2 - 0.18;
-  const axle = (x) =>
-    [wheelZ, -wheelZ].map((z, i) => (
-      <mesh key={`${x}-${i}`} position={[x, 0.5, z]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-        <cylinderGeometry args={[0.5, 0.5, 0.32, 18]} />
-        <meshStandardMaterial color="#0c0f14" roughness={0.9} />
+  const wheel = (x, z, key) => (
+    <group key={key} position={[x, 0.52, z]}>
+      <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <cylinderGeometry args={[0.52, 0.52, 0.34, 22]} />
+        <meshStandardMaterial color="#0c0f14" roughness={0.92} />
       </mesh>
-    ));
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, Math.sign(z) * 0.18]}>
+        <cylinderGeometry args={[0.22, 0.22, 0.05, 16]} />
+        <meshStandardMaterial color="#9aa3ad" metalness={0.6} roughness={0.4} />
+      </mesh>
+    </group>
+  );
 
   return (
     <group ref={ref} position={[t.x, 0, dock.z]}>
-      {/* 적재함(박스 바디) — 후면 x=0이 도크로 */}
-      <mesh position={[-boxLen / 2, boxCY, 0]} castShadow receiveShadow>
-        <boxGeometry args={[boxLen, boxH, boxW]} />
-        <meshStandardMaterial color={body} metalness={0.12} roughness={0.6} />
+      {/* 적재함(라운드 박스) */}
+      <RoundedBox args={[boxLen, boxH, boxW]} radius={0.09} smoothness={3} position={[-boxLen / 2, boxCY, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color={body} metalness={0.15} roughness={0.5} />
+      </RoundedBox>
+      {/* 후면 개구(어두운 화물칸) — 도어 개방 시 보임 */}
+      <mesh position={[0.04, boxCY, 0]}>
+        <boxGeometry args={[0.03, doorH, boxW - 0.18]} />
+        <meshStandardMaterial color="#0a0d11" roughness={1} />
       </mesh>
-      {/* 후면 양판 도어 + 중앙 심 + 손잡이 */}
-      <mesh position={[0.05, boxCY, 0]}>
-        <boxGeometry args={[0.08, boxH - 0.14, boxW - 0.1]} />
-        <meshStandardMaterial color="#aab2bb" metalness={0.2} roughness={0.58} />
+      {/* 후면 양면 스윙 도어 — 도킹 시 양옆 개방 */}
+      <group ref={doorR} position={[0.08, boxCY, wz + 0.04]}>
+        <mesh position={[0, 0, -doorW / 2]} castShadow>
+          <boxGeometry args={[0.06, doorH, doorW]} />
+          <meshStandardMaterial color={body} metalness={0.15} roughness={0.5} />
+        </mesh>
+        <mesh position={[0.06, 0, -doorW + 0.12]}>
+          <boxGeometry args={[0.05, 0.5, 0.05]} />
+          <meshStandardMaterial color="#2b313a" metalness={0.5} roughness={0.4} />
+        </mesh>
+      </group>
+      <group ref={doorL} position={[0.08, boxCY, -wz - 0.04]}>
+        <mesh position={[0, 0, doorW / 2]} castShadow>
+          <boxGeometry args={[0.06, doorH, doorW]} />
+          <meshStandardMaterial color={body} metalness={0.15} roughness={0.5} />
+        </mesh>
+        <mesh position={[0.06, 0, doorW - 0.12]}>
+          <boxGeometry args={[0.05, 0.5, 0.05]} />
+          <meshStandardMaterial color="#2b313a" metalness={0.5} roughness={0.4} />
+        </mesh>
+      </group>
+      {/* 섀시 빔 + 후미등 */}
+      <mesh position={[(cabFront + 0.2) / 2, 0.66, 0]}>
+        <boxGeometry args={[boxLen + gap + cabLen - 0.2, 0.2, boxW - 0.55]} />
+        <meshStandardMaterial color="#20242b" metalness={0.4} roughness={0.6} />
       </mesh>
-      <mesh position={[0.1, boxCY, 0]}>
-        <boxGeometry args={[0.05, boxH - 0.14, 0.05]} />
-        <meshStandardMaterial color="#5b6470" metalness={0.3} roughness={0.6} />
-      </mesh>
-      {[-0.34, 0.34].map((z, i) => (
-        <mesh key={i} position={[0.12, boxCY - 0.1, z]}>
-          <boxGeometry args={[0.06, 0.6, 0.06]} />
-          <meshStandardMaterial color="#39414c" metalness={0.5} roughness={0.4} />
+      {[-1, 1].map((s, i) => (
+        <mesh key={i} position={[0.05, 0.78, s * (boxW / 2 - 0.2)]}>
+          <boxGeometry args={[0.05, 0.22, 0.18]} />
+          <meshStandardMaterial color="#b3402f" emissive="#902519" emissiveIntensity={0.5} toneMapped={false} />
         </mesh>
       ))}
-      {/* 섀시 빔 */}
-      <mesh position={[(cabFront + 0.2) / 2, 0.62, 0]}>
-        <boxGeometry args={[boxLen + gap + cabLen - 0.2, 0.22, boxW - 0.5]} />
-        <meshStandardMaterial color="#23272e" metalness={0.4} roughness={0.6} />
+      {/* 캡(라운드) */}
+      <RoundedBox args={[cabLen, cabH, boxW - 0.06]} radius={0.13} smoothness={3} position={[cabFront + cabLen / 2, bedH + cabH / 2, 0]} castShadow>
+        <meshStandardMaterial color={body} metalness={0.2} roughness={0.45} />
+      </RoundedBox>
+      {/* 윈드실드(경사) + 측면 캡 창 */}
+      <mesh position={[cabFront + 0.16, bedH + cabH * 0.66, 0]} rotation={[0, 0, -0.32]}>
+        <boxGeometry args={[0.05, cabH * 0.5, boxW - 0.5]} />
+        <meshStandardMaterial color="#0e141c" metalness={0.6} roughness={0.12} />
       </mesh>
-      {/* 캡 */}
-      <mesh position={[cabFront + cabLen / 2, bedH + cabH / 2, 0]} castShadow>
-        <boxGeometry args={[cabLen, cabH, boxW - 0.05]} />
-        <meshStandardMaterial color={body} metalness={0.2} roughness={0.5} />
-      </mesh>
-      {/* 윈드실드 */}
-      <mesh position={[cabFront + 0.05, bedH + cabH * 0.64, 0]}>
-        <boxGeometry args={[0.06, cabH * 0.46, boxW - 0.45]} />
-        <meshStandardMaterial color="#0f141b" metalness={0.5} roughness={0.18} />
-      </mesh>
-      {/* 측면 캡 창 */}
-      {[wheelZ + 0.02, -wheelZ - 0.02].map((z, i) => (
-        <mesh key={i} position={[cabFront + cabLen * 0.42, bedH + cabH * 0.62, z]}>
-          <boxGeometry args={[cabLen * 0.5, cabH * 0.38, 0.04]} />
-          <meshStandardMaterial color="#0f141b" metalness={0.5} roughness={0.18} />
+      {[wz + 0.04, -wz - 0.04].map((z, i) => (
+        <mesh key={i} position={[cabFront + cabLen * 0.52, bedH + cabH * 0.58, z]}>
+          <boxGeometry args={[cabLen * 0.46, cabH * 0.32, 0.03]} />
+          <meshStandardMaterial color="#0e141c" metalness={0.6} roughness={0.12} />
         </mesh>
       ))}
-      {/* 헤드라이트 + 그릴 */}
-      {[-0.8, 0.8].map((z, i) => (
-        <mesh key={i} position={[cabFront + 0.02, bedH + 0.25, z]}>
-          <boxGeometry args={[0.05, 0.26, 0.32]} />
-          <meshStandardMaterial color="#eef3f8" emissive="#cdd8e2" emissiveIntensity={0.35} toneMapped={false} />
+      {/* 범퍼(크롬) + 그릴 + 헤드라이트 */}
+      <mesh position={[cabFront - 0.1, bedH - 0.02, 0]} castShadow>
+        <boxGeometry args={[0.3, 0.34, boxW - 0.12]} />
+        <meshStandardMaterial color="#c7ccd2" metalness={0.7} roughness={0.3} />
+      </mesh>
+      <mesh position={[cabFront + 0.02, bedH + 0.36, 0]}>
+        <boxGeometry args={[0.04, 0.5, boxW - 0.6]} />
+        <meshStandardMaterial color="#1a1e24" metalness={0.5} roughness={0.5} />
+      </mesh>
+      {[-1, 1].map((s, i) => (
+        <mesh key={i} position={[cabFront - 0.02, bedH + 0.14, s * (boxW / 2 - 0.35)]}>
+          <boxGeometry args={[0.05, 0.2, 0.3]} />
+          <meshStandardMaterial color="#eef3f8" emissive="#dde7f0" emissiveIntensity={0.4} toneMapped={false} />
         </mesh>
       ))}
-      {/* 바퀴: 전축 + 후축 2열(듀얼) */}
-      {axle(cabFront + 1.0)}
-      {axle(-1.1)}
-      {axle(-2.25)}
+      {/* 사이드 미러 */}
+      {[-1, 1].map((s, i) => (
+        <group key={i} position={[cabFront + 0.35, bedH + cabH * 0.7, s * (boxW / 2 + 0.02)]}>
+          <mesh position={[0, 0, s * 0.16]}>
+            <boxGeometry args={[0.04, 0.04, 0.34]} />
+            <meshStandardMaterial color="#2b313a" />
+          </mesh>
+          <mesh position={[0, 0, s * 0.34]}>
+            <boxGeometry args={[0.06, 0.32, 0.12]} />
+            <meshStandardMaterial color="#15181d" metalness={0.5} roughness={0.4} />
+          </mesh>
+        </group>
+      ))}
+      {/* 휠 — 전축 + 후축 2열 + 머드가드 */}
+      {wheel(cabFront + 1.0, wz, 'fa-r')}
+      {wheel(cabFront + 1.0, -wz, 'fa-l')}
+      {wheel(-1.0, wz, 'r1-r')}
+      {wheel(-1.0, -wz, 'r1-l')}
+      {wheel(-2.15, wz, 'r2-r')}
+      {wheel(-2.15, -wz, 'r2-l')}
+      {[-1, 1].map((s, i) => (
+        <mesh key={i} position={[-1.55, 1.05, s * (wz + 0.02)]}>
+          <boxGeometry args={[1.9, 0.1, 0.52]} />
+          <meshStandardMaterial color="#1c2026" metalness={0.3} roughness={0.7} />
+        </mesh>
+      ))}
     </group>
   );
 }
@@ -382,36 +443,74 @@ function Forklift({ dock, b, cs }) {
   );
 }
 
-/** AGV — 진행 방향 회전 + 운반 팔레트. */
-function Agv({ data, cs }) {
+/** 출고 컨베이어 — 통로 P&D에서 전면 메인 라인을 따라 도크 스테이징으로 이송하는 구조물. */
+function Conveyor({ b, config, cs }) {
+  const z0 = b.z0 + 1.2;
+  const z1 = b.z1 - 1.2;
+  const bedY = 0.42;
+  const laneX = b.laneX;
+  const pndX = b.pndX ?? -0.6;
+  const mainLen = z1 - z0;
+  const midZ = (z0 + z1) / 2;
+  const aisleZs = Array.from({ length: config.aisles }, (_, i) => i * config.aisleSpacing + cs.depth / 2);
+  const nLeg = Math.max(2, Math.round(mainLen / 3));
+  const spurLen = Math.abs(pndX - laneX);
+  return (
+    <group>
+      {/* 메인 라인 벨트 + 측면 프레임 */}
+      <mesh position={[laneX, bedY, midZ]} receiveShadow castShadow>
+        <boxGeometry args={[0.95, 0.14, mainLen]} />
+        <meshStandardMaterial color="#23282f" metalness={0.4} roughness={0.55} />
+      </mesh>
+      {[-0.52, 0.52].map((dx, i) => (
+        <mesh key={`mf${i}`} position={[laneX + dx, bedY, midZ]}>
+          <boxGeometry args={[0.08, 0.2, mainLen]} />
+          <meshStandardMaterial color="#3a4250" metalness={0.55} roughness={0.45} />
+        </mesh>
+      ))}
+      {Array.from({ length: nLeg + 1 }).map((_, i) => (
+        <mesh key={`leg${i}`} position={[laneX, bedY / 2 - 0.05, z0 + (mainLen * i) / nLeg]}>
+          <boxGeometry args={[0.7, bedY, 0.07]} />
+          <meshStandardMaterial color="#2a2f37" metalness={0.4} roughness={0.6} />
+        </mesh>
+      ))}
+      {/* 통로 스퍼(통로 앞 → 메인 라인) */}
+      {aisleZs.map((z, i) => (
+        <group key={`spur${i}`}>
+          <mesh position={[(pndX + laneX) / 2, bedY, z]} receiveShadow castShadow>
+            <boxGeometry args={[spurLen, 0.14, 0.8]} />
+            <meshStandardMaterial color="#23282f" metalness={0.4} roughness={0.55} />
+          </mesh>
+          {[-0.42, 0.42].map((dz, j) => (
+            <mesh key={j} position={[(pndX + laneX) / 2, bedY, z + dz]}>
+              <boxGeometry args={[spurLen, 0.2, 0.06]} />
+              <meshStandardMaterial color="#3a4250" metalness={0.55} roughness={0.45} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** 컨베이어 위를 이동하는 팔레트(서버 좌표 보간). */
+function ConveyorItem({ data, cs }) {
   const ref = useRef();
   useFrame(() => {
     if (!ref.current) return;
-    ref.current.position.x = lerp(ref.current.position.x, data.x, 0.16);
-    ref.current.position.z = lerp(ref.current.position.z, data.z, 0.16);
-    let h = ref.current.rotation.y;
-    let d = data.heading - h;
-    while (d > Math.PI) d -= Math.PI * 2;
-    while (d < -Math.PI) d += Math.PI * 2;
-    ref.current.rotation.y = h + d * 0.2;
+    ref.current.position.x = lerp(ref.current.position.x, data.x, 0.22);
+    ref.current.position.z = lerp(ref.current.position.z, data.z, 0.22);
   });
   return (
-    <group ref={ref} position={[data.x, 0, data.z]} rotation={[0, data.heading, 0]}>
-      <mesh position={[0, 0.22, 0]} castShadow>
-        <boxGeometry args={[0.95, 0.34, 1.35]} />
-        <meshStandardMaterial color={data.carrying ? '#c2741f' : '#3f6080'} metalness={0.4} roughness={0.45} />
+    <group ref={ref} position={[data.x, 0.55, data.z]}>
+      <mesh castShadow>
+        <boxGeometry args={[cs.width * 0.78, 0.12, cs.depth * 0.78]} />
+        <meshStandardMaterial color="#6b5236" roughness={0.9} />
       </mesh>
-      {/* 진행 방향 표시등(앞쪽 +Z) */}
-      <mesh position={[0, 0.3, 0.7]}>
-        <boxGeometry args={[0.5, 0.08, 0.06]} />
-        <meshStandardMaterial color={theme.info} emissive={theme.info} emissiveIntensity={0.8} toneMapped={false} />
+      <mesh position={[0, 0.3, 0]} castShadow>
+        <boxGeometry args={[cs.width * 0.66, 0.48, cs.depth * 0.66]} />
+        <meshStandardMaterial color={theme.load[data.grade] || theme.load.B} roughness={0.85} />
       </mesh>
-      {data.carrying && (
-        <mesh position={[0, 0.62, 0]} castShadow>
-          <boxGeometry args={[cs.width * 0.72, cs.height * 0.5, cs.depth * 0.74]} />
-          <meshStandardMaterial color={theme.load.B} roughness={0.85} />
-        </mesh>
-      )}
     </group>
   );
 }
@@ -489,16 +588,17 @@ export default function Facility() {
         </group>
       ))}
 
-      {/* AGV */}
-      {facility.agvs.map((a) => (
-        <Agv key={a.id} data={a} cs={cs} />
+      {/* 출고 컨베이어 + 컨베이어 위 팔레트 */}
+      <Conveyor b={b} config={config} cs={cs} />
+      {(facility.conveyor || []).map((it) => (
+        <ConveyorItem key={it.id} data={it} cs={cs} />
       ))}
 
       {/* 구역 라벨 */}
       {inDock && <ZoneLabel pos={[b.wallX - 1, 4.2, inDock.z]} text="입고 도크" color={theme.ok} />}
       {outDock && <ZoneLabel pos={[b.wallX - 1, 4.2, outDock.z]} text="출하 도크" color={theme.caution} />}
       <ZoneLabel pos={[b.rackW / 2, b.height + 0.5, midZ]} text="AS/RS 보관" color={theme.info} />
-      <ZoneLabel pos={[b.laneX, 1.4, b.z0 + 2]} text="반송 AGV" color={theme.crane.RETURNING} />
+      <ZoneLabel pos={[b.laneX, 1.4, b.z0 + 2]} text="출고 컨베이어" color={theme.crane.RETURNING} />
     </group>
   );
 }

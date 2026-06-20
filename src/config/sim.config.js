@@ -19,7 +19,7 @@ export const simConfig = {
   // 단일 명령 용량(~12/분) 부근으로 설정 — 혼합 백로그가 형성되어 Dual Command 페어링이
   // 가시화되고, 피크(1.4×≈20/분)엔 단일 명령은 적체·복합 명령은 흡수하는 대비가 드러남.
   baseArrivalPerMin: 14,
-  initialFillRate: 0.4, // 초기 적재율 (0~1) → 시작부터 OUTBOUND 유효
+  initialFillRate: 0.6, // 초기 적재율 (0~1) → 시작부터 적정 재고로 가동
 
   /**
    * 시간대별 부하 곡선 (24시간). 각 원소:
