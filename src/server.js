@@ -24,6 +24,7 @@ import { CommandMode } from './services/dispatcher.js';
 import { Op } from './models/task.js';
 import { runSlotting } from './services/slotting.js';
 import { ExceptionManager } from './services/exceptionManager.js';
+import { TmsSimulator } from './services/tmsSimulator.js';
 import { Rng } from './sim/rng.js';
 
 // ── 설정 ────────────────────────────────────────────────────────
@@ -50,6 +51,11 @@ const controlRng = new Rng((Number(process.env.SIM_SEED ?? simConfig.seed) || 1)
 const exceptions = new ExceptionManager();
 const EXC_EVERY_TICKS = Number(process.env.EXC_EVERY_TICKS) || 150; // 예외 주입 주기
 const EXC_MAX_ACTIVE = 3;
+
+// TMS(배송 차량) 시뮬레이터 — 시뮬 RNG와 분리.
+const tms = new TmsSimulator(new Rng((Number(process.env.SIM_SEED ?? simConfig.seed) || 1) + 4231), {
+  count: Number(process.env.TMS_TRUCKS) || 6,
+});
 
 const slimOrder = (o) => ({ id: o.id, type: o.type, sku: o.sku, grade: o.grade, quantity: o.quantity });
 
@@ -119,6 +125,7 @@ function buildInit() {
     occupied: warehouse.occupiedCells(),
     cranes: dispatcher.cranes.map((c) => c.renderState()),
     exceptions: exceptions.list(),
+    tms: tms.snapshot(clock.hourOfDay),
     kpi: kpi.snapshot(generator.jobQueue.length),
   };
 }
@@ -157,6 +164,22 @@ function handleCommand(cmd = {}) {
         { kind: 'exception-resolved', level: 'ok', msg: `${exc.label} 예외를 처리했습니다 (${exc.cellId}).`, tick: clock.tick },
       ]);
     }
+  } else if (cmd.type === 'SET_CONSENT') {
+    tms.setConsentGlobal(cmd.value);
+    io.emit('patch', {
+      cellDeltas: [],
+      events: [
+        {
+          kind: 'compliance',
+          level: cmd.value ? 'ok' : 'alarm',
+          msg: cmd.value ? '위치 수집 동의가 적용되어 배송 위치를 표시합니다.' : '위치 수집 동의가 해제되어 배송 위치를 마스킹합니다.',
+          tick: clock.tick,
+        },
+      ],
+      exceptions: exceptions.list(),
+      tick: clock.tick,
+      virtualTime: clock.virtualTime,
+    });
   }
 }
 
@@ -180,6 +203,8 @@ clock.on('tick', ({ tick, virtualTime, hourOfDay }) => {
     }
   }
 
+  tms.tick();
+
   io.emit('state', {
     tick,
     virtualTime,
@@ -190,6 +215,7 @@ clock.on('tick', ({ tick, virtualTime, hourOfDay }) => {
     done: tickDone,
     events: tickEvents,
     exceptions: exceptions.list(),
+    tms: tms.snapshot(hourOfDay),
     cycles: dispatcher.totals(),
     kpi: kpi.snapshot(generator.jobQueue.length),
   });

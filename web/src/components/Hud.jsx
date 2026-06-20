@@ -30,7 +30,7 @@ function TopBar() {
       </div>
 
       <div className="order-3 flex rounded-md border p-0.5 sm:order-2" style={{ borderColor: theme.border }}>
-        {[['3D', '3D 뷰'], ['2D', '평면 뷰']].map(([v, label]) => (
+        {[['3D', '3D 뷰'], ['2D', '평면 뷰'], ['MAP', '배송 관제']].map(([v, label]) => (
           <button
             key={v}
             onClick={() => setView(v)}
@@ -234,14 +234,16 @@ function Legend() {
 }
 
 export default function Hud() {
+  const view = useStore((s) => s.view);
+  const isWarehouse = view !== 'MAP';
   return (
     <div className="pointer-events-none absolute inset-0" style={{ color: theme.text }}>
       <TopBar />
       <ExceptionAlert />
-      <ControlColumn />
-      <WorkLog />
-      <Legend />
-      <MobileBar />
+      {isWarehouse && <ControlColumn />}
+      {isWarehouse && <WorkLog />}
+      {isWarehouse && <Legend />}
+      {isWarehouse && <MobileBar />}
     </div>
   );
 }
