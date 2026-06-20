@@ -53,19 +53,23 @@ function FallbackMap() {
       ctx.fillStyle = theme.bgDeep;
       ctx.fillRect(0, 0, W, H);
 
-      // 그래티큘(격자) 백드롭
-      ctx.strokeStyle = theme.border;
-      ctx.lineWidth = 1;
-      ctx.globalAlpha = 0.5;
-      for (let i = 1; i < 8; i++) {
-        const x = pad + (i / 8) * (W - pad * 2);
-        ctx.beginPath(); ctx.moveTo(x, pad); ctx.lineTo(x, H - pad); ctx.stroke();
+      // 도로망 — 간선(경도=세로 / 위도=가로)을 케이싱+중앙선으로 렌더. 경로는 이 위를 직각 주행.
+      const roads = tms && tms.roads;
+      const drawRoad = (x0, y0, x1, y1) => {
+        ctx.strokeStyle = '#2a3344'; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        ctx.strokeStyle = '#3a4860'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+        ctx.strokeStyle = '#5a6c88'; ctx.lineWidth = 0.8; ctx.setLineDash([6, 7]);
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);
+      };
+      if (roads) {
+        for (const lng of roads.lngs) { const x = px(lng); drawRoad(x, pad * 0.5, x, H - pad * 0.5); }
+        for (const lat of roads.lats) { const y = py(lat); drawRoad(pad * 0.5, y, W - pad * 0.5, y); }
+      } else {
+        ctx.strokeStyle = theme.border; ctx.lineWidth = 1; ctx.globalAlpha = 0.5;
+        for (let i = 1; i < 8; i++) { const x = pad + (i / 8) * (W - pad * 2); ctx.beginPath(); ctx.moveTo(x, pad); ctx.lineTo(x, H - pad); ctx.stroke(); }
+        for (let i = 1; i < 6; i++) { const y = pad + (i / 6) * (H - pad * 2); ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(W - pad, y); ctx.stroke(); }
+        ctx.globalAlpha = 1;
       }
-      for (let i = 1; i < 6; i++) {
-        const y = pad + (i / 6) * (H - pad * 2);
-        ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(W - pad, y); ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
       ctx.fillStyle = theme.textFaint;
       ctx.font = '11px ui-sans-serif';
       ctx.textAlign = 'left';

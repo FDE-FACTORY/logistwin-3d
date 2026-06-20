@@ -11,9 +11,14 @@
  */
 const DC = { lat: 37.4563, lng: 126.7052, name: '인천 물류센터' }; // 인천 일대
 
+// 간이 도로망 — 주요 간선의 경도(세로축)·위도(가로축) 라인. 경로가 이 격자를 따라 직각 주행.
+const GRID_LNGS = [126.78, 126.9, 127.02, 127.14, 127.26];
+const GRID_LATS = [37.44, 37.54, 37.64, 37.74];
+
 function lerp(a, b, t) {
   return { lat: a.lat + (b.lat - a.lat) * t, lng: a.lng + (b.lng - a.lng) * t };
 }
+const nearest = (arr, v) => arr.reduce((m, x) => (Math.abs(x - v) < Math.abs(m - v) ? x : m), arr[0]);
 
 export class TmsSimulator {
   /**
@@ -28,22 +33,41 @@ export class TmsSimulator {
   }
 
   _randDest() {
-    // 수도권 대략 범위
-    return { lat: 37.42 + this.rng.random() * 0.34, lng: 126.80 + this.rng.random() * 0.46 };
+    // 배송지는 도로 격자 교차점 부근(간선 접근).
+    const lng = GRID_LNGS[this.rng.int(0, GRID_LNGS.length - 1)] + (this.rng.random() - 0.5) * 0.02;
+    const lat = GRID_LATS[this.rng.int(0, GRID_LATS.length - 1)] + (this.rng.random() - 0.5) * 0.02;
+    return { lat, lng };
+  }
+
+  /** 두 지점 사이를 도로 격자를 따라 직각으로 잇는 경유점(끝점 b 포함). */
+  _roadLeg(a, b) {
+    const horizFirst = this.rng.random() < 0.5;
+    // 격자선에 맞춘 코너 — 한 축은 간선 경도/위도에 스냅.
+    const corner = horizFirst
+      ? { lat: a.lat, lng: nearest(GRID_LNGS, b.lng) }
+      : { lat: nearest(GRID_LATS, b.lat), lng: a.lng };
+    return [corner, { lat: b.lat, lng: b.lng }];
   }
 
   _newTruck(i) {
     const stopCount = this.rng.int(2, 3);
+    const dests = [];
+    for (let s = 0; s < stopCount; s++) dests.push(this._randDest());
+    // DC → 배송지들 → DC, 각 구간을 도로 추종 경유점으로 전개.
     const stops = [this.dc];
-    for (let s = 0; s < stopCount; s++) stops.push(this._randDest());
-    stops.push(this.dc);
+    let prev = this.dc;
+    for (const d of [...dests, this.dc]) {
+      for (const wp of this._roadLeg(prev, d)) stops.push(wp);
+      prev = d;
+    }
     return {
       id: `TRK-${String(i + 1).padStart(2, '0')}`,
       plate: `${this.rng.int(10, 99)}바 ${this.rng.int(1000, 9999)}`,
       stops,
+      stopCount, // 실제 배송지 수(상태 판정용)
       seg: 0,
       t: this.rng.random(),
-      speed: 0.003 + this.rng.random() * 0.004,
+      speed: 0.006 + this.rng.random() * 0.006,
       consent: this.rng.random() > 0.18, // 일부 미동의 차량
     };
   }
@@ -68,9 +92,14 @@ export class TmsSimulator {
     }
   }
 
+  _frac(tr) {
+    return (tr.seg + tr.t) / Math.max(1, tr.stops.length - 1);
+  }
+
   _status(tr) {
-    if (tr.seg === 0) return '배송 출발';
-    if (tr.seg >= tr.stops.length - 2) return '센터 복귀';
+    const f = this._frac(tr);
+    if (f < 0.12) return '배송 출발';
+    if (f > 0.72) return '센터 복귀';
     return '배송 중';
   }
 
@@ -81,11 +110,11 @@ export class TmsSimulator {
       dc: this.dc,
       businessHours,
       consentGlobal: this.consentGlobal,
+      roads: { lngs: GRID_LNGS, lats: GRID_LATS },
       trucks: this.trucks.map((tr) => {
         const masked = !this.consentGlobal || !tr.consent || !businessHours;
         const pos = lerp(tr.stops[tr.seg], tr.stops[tr.seg + 1], tr.t);
-        const remainSeg = tr.stops.length - 1 - tr.seg;
-        const etaMin = Math.round((remainSeg - tr.t) * 18); // 구간당 ~18분 근사
+        const etaMin = Math.max(2, Math.round((1 - this._frac(tr)) * 52) + 3); // 잔여 진행률 기반
         return {
           id: tr.id,
           plate: tr.plate,
