@@ -15,8 +15,8 @@ function Rig({ ext, children }) {
 function Floor({ ext }) {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[ext.x / 2, -0.04, ext.z / 2]} receiveShadow>
-      <planeGeometry args={[ext.x + 40, ext.z + 40]} />
-      <meshStandardMaterial color="#10151c" metalness={0.1} roughness={0.95} />
+      <planeGeometry args={[ext.x + 60, ext.z + 60]} />
+      <meshStandardMaterial color={theme.concrete} metalness={0} roughness={1} />
     </mesh>
   );
 }
@@ -25,9 +25,9 @@ export default function Scene() {
   const config = useStore((s) => s.config);
   const cranes = useStore((s) => s.cranes);
   const ext = config ? warehouseExtent(config) : { x: 30, y: 8, z: 20 };
-  // 낮은 3/4 앵글 — 입출하 도크까지 한 화면에.
-  const cam = [ext.x * 0.5 + 8, ext.y * 1.6 + 8, ext.z * 1.5 + 22];
-  const shadowS = Math.max(ext.x, ext.z) / 2 + 8;
+  // 낮은 3/4 앵글 — 입출하 도크(−X)까지 한 화면에.
+  const cam = [ext.x * 0.42, ext.y * 1.8 + 12, ext.z * 1.7 + 30];
+  const shadowS = Math.max(ext.x, ext.z) / 2 + 16;
 
   return (
     <Canvas
@@ -36,15 +36,16 @@ export default function Scene() {
       camera={{ position: cam, fov: 48, far: 6000 }}
       gl={{ antialias: true, toneMappingExposure: 1.15 }}
     >
-      <color attach="background" args={[theme.bgDeep]} />
-      <fog attach="fog" args={[theme.bgDeep, ext.z * 2 + 40, ext.z * 5 + 160]} />
+      <color attach="background" args={['#12161b']} />
+      <fog attach="fog" args={['#12161b', ext.z * 2 + 60, ext.z * 5 + 200]} />
 
-      {/* 조명: 키(그림자) + 반구 채움 + 림 */}
-      <ambientLight intensity={0.32} />
-      <hemisphereLight args={['#bcd0f0', '#0a0e1a', 0.55]} />
+      {/* 산업 조명: 따뜻한 키(그림자) + 반구 채움 + 중성 림 */}
+      <ambientLight intensity={0.46} />
+      <hemisphereLight args={['#d2ccbb', '#16181d', 0.5]} />
       <directionalLight
         position={[ext.x * 0.8, ext.y * 3 + 28, ext.z * 0.7]}
-        intensity={1.7}
+        intensity={1.5}
+        color="#fff2df"
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0004}
@@ -55,7 +56,7 @@ export default function Scene() {
         shadow-camera-top={shadowS}
         shadow-camera-bottom={-shadowS}
       />
-      <directionalLight position={[-ext.x * 0.6, ext.y * 1.8, -ext.z * 0.8]} intensity={0.45} color="#5b8def" />
+      <directionalLight position={[-ext.x * 0.6, ext.y * 1.8, -ext.z * 0.8]} intensity={0.3} color="#9fb0c8" />
 
       {config && (
         <Rig ext={ext}>
@@ -78,7 +79,7 @@ export default function Scene() {
 
       <OrbitControls
         makeDefault
-        target={[0, ext.y * 0.35, 0]}
+        target={[-6, ext.y * 0.3, 0]}
         maxPolarAngle={Math.PI / 2.05}
         enableDamping
         dampingFactor={0.09}

@@ -1,69 +1,85 @@
 import { useRef, useEffect, useMemo, useLayoutEffect } from 'react';
 import * as THREE from 'three';
-import { Edges } from '@react-three/drei';
 import { useStore } from '../store.js';
 import { cellWorldFromId } from '../coords.js';
-import { GRADE_COLOR } from '../config.js';
 import { theme } from '../theme.js';
 
-/** 통로별·면별 랙 블록 외곽(반투명 + 와이어). */
-function RackBlocks({ config }) {
+/**
+ * 셀렉티브 파렛트 랙 구조 — 철골 업라이트 프레임 + 오렌지 로드빔(실사 형상).
+ * 장난감 와이어프레임 대신 실제 창고 랙처럼 프레임/빔으로 구성.
+ */
+function RackStructure({ config }) {
   const cs = config.cellSize;
+  const postH = config.levels * cs.height + 0.2;
   const blockW = config.baysPerSide * cs.width;
-  const blockH = config.levels * cs.height;
-  const blocks = [];
-  for (let a = 1; a <= config.aisles; a++) {
-    for (const side of ['L', 'R']) {
-      const z = (a - 1) * config.aisleSpacing + (side === 'R' ? cs.depth : 0);
-      blocks.push(
-        <mesh key={`${a}-${side}`} position={[blockW / 2 - cs.width / 2, blockH / 2 - cs.height / 2, z]}>
-          <boxGeometry args={[blockW, blockH, cs.depth * 0.92]} />
-          <meshStandardMaterial color="#16213b" transparent opacity={0.08} />
-          <Edges color="#34507f" />
-        </mesh>,
-      );
-    }
-  }
-  return <group>{blocks}</group>;
-}
+  const frameStep = Math.max(2, Math.round(config.baysPerSide / 8)); // 프레임 간격(베이)
+  const zf = cs.depth * 0.42; // 프레임 전/후 오프셋
 
-/** 랙 기둥(업라이트, 인스턴스) — 베이 간격마다 수직 포스트. */
-function RackUprights({ config }) {
-  const cs = config.cellSize;
-  const postH = config.levels * cs.height;
-  const step = Math.max(4, Math.round(config.baysPerSide / 6));
-  const posts = useMemo(() => {
+  const uprights = useMemo(() => {
     const arr = [];
     for (let a = 1; a <= config.aisles; a++) {
       for (const side of ['L', 'R']) {
         const z = (a - 1) * config.aisleSpacing + (side === 'R' ? cs.depth : 0);
-        for (let b = 0; b <= config.baysPerSide; b += step) {
-          arr.push([b * cs.width - cs.width / 2, postH / 2, z]);
+        for (let b = 0; b <= config.baysPerSide; b += frameStep) {
+          const x = b * cs.width - cs.width / 2;
+          arr.push([x, postH / 2, z - zf]);
+          arr.push([x, postH / 2, z + zf]);
         }
       }
     }
     return arr;
-  }, [config, cs.width, cs.depth, postH, step]);
+  }, [config, cs.width, cs.depth, postH, frameStep, zf]);
 
-  const ref = useRef();
+  const beams = useMemo(() => {
+    const arr = [];
+    for (let a = 1; a <= config.aisles; a++) {
+      for (const side of ['L', 'R']) {
+        const z = (a - 1) * config.aisleSpacing + (side === 'R' ? cs.depth : 0);
+        for (let lvl = 1; lvl <= config.levels; lvl++) {
+          const y = lvl * cs.height;
+          arr.push([blockW / 2 - cs.width / 2, y, z - zf]);
+          arr.push([blockW / 2 - cs.width / 2, y, z + zf]);
+        }
+      }
+    }
+    return arr;
+  }, [config, cs.width, cs.height, cs.depth, blockW, zf]);
+
+  const upRef = useRef();
+  const beamRef = useRef();
   useLayoutEffect(() => {
-    const m = ref.current;
-    if (!m) return;
     const d = new THREE.Object3D();
-    posts.forEach((p, i) => {
-      d.position.set(p[0], p[1], p[2]);
-      d.scale.set(0.09, postH, 0.09);
-      d.updateMatrix();
-      m.setMatrixAt(i, d.matrix);
-    });
-    m.instanceMatrix.needsUpdate = true;
-  }, [posts, postH]);
+    if (upRef.current) {
+      uprights.forEach((p, i) => {
+        d.position.set(p[0], p[1], p[2]);
+        d.scale.set(0.1, postH, 0.1);
+        d.updateMatrix();
+        upRef.current.setMatrixAt(i, d.matrix);
+      });
+      upRef.current.instanceMatrix.needsUpdate = true;
+    }
+    if (beamRef.current) {
+      beams.forEach((p, i) => {
+        d.position.set(p[0], p[1], p[2]);
+        d.scale.set(blockW, 0.07, 0.06);
+        d.updateMatrix();
+        beamRef.current.setMatrixAt(i, d.matrix);
+      });
+      beamRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [uprights, beams, postH, blockW]);
 
   return (
-    <instancedMesh ref={ref} args={[undefined, undefined, posts.length]} castShadow>
-      <boxGeometry />
-      <meshStandardMaterial color="#5b6675" metalness={0.5} roughness={0.5} />
-    </instancedMesh>
+    <group>
+      <instancedMesh ref={upRef} args={[undefined, undefined, uprights.length]} castShadow receiveShadow>
+        <boxGeometry />
+        <meshStandardMaterial color="#41506a" metalness={0.55} roughness={0.5} />
+      </instancedMesh>
+      <instancedMesh ref={beamRef} args={[undefined, undefined, beams.length]} castShadow>
+        <boxGeometry />
+        <meshStandardMaterial color="#b4651a" metalness={0.45} roughness={0.55} />
+      </instancedMesh>
+    </group>
   );
 }
 
@@ -89,41 +105,73 @@ function GuideRails({ config }) {
   return <group>{rails}</group>;
 }
 
-/** 점유 셀 팔레트 — InstancedMesh (등급별 색). cellsVersion 변화 시 갱신. */
+/** 문자열 해시 → 0~999 (적재물 높이/색조 미세 변주용, 결정론적). */
+function hashId(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return h % 1000;
+}
+
+/**
+ * 점유 셀 화물 — 나무 파렛트 + 골판지/랩 적재물(실사 톤). 두 InstancedMesh.
+ * 등급은 톤으로만 미세 구분(장난감 큐브 느낌 제거), 높이 변주로 자연스럽게.
+ */
 function Pallets({ config }) {
-  const ref = useRef();
+  const baseRef = useRef();
+  const loadRef = useRef();
   const cells = useStore((s) => s.cells);
   const version = useStore((s) => s.cellsVersion);
   const cs = config.cellSize;
   const max = config.aisles * 2 * config.baysPerSide * config.levels;
 
   useEffect(() => {
-    const mesh = ref.current;
-    if (!mesh) return;
-    const dummy = new THREE.Object3D();
-    const color = new THREE.Color();
+    const base = baseRef.current;
+    const load = loadRef.current;
+    if (!base || !load) return;
+    const d = new THREE.Object3D();
+    const col = new THREE.Color();
     let i = 0;
     cells.forEach((v, id) => {
       if (!v.occupied) return;
       const p = cellWorldFromId(config, id);
       if (!p) return;
-      dummy.position.set(p.x, p.y + cs.height * 0.5, p.z);
-      dummy.scale.set(cs.width * 0.8, cs.height * 0.72, cs.depth * 0.8);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
-      mesh.setColorAt(i, color.set(GRADE_COLOR[v.grade] || '#64748b'));
+      const hh = hashId(id);
+      const loadH = cs.height * (0.5 + (hh % 28) / 100); // 0.50~0.78 높이 변주
+
+      // 나무 파렛트 (셀 바닥의 얇은 슬랩)
+      d.position.set(p.x, p.y + cs.height * 0.07, p.z);
+      d.scale.set(cs.width * 0.92, cs.height * 0.12, cs.depth * 0.92);
+      d.updateMatrix();
+      base.setMatrixAt(i, d.matrix);
+
+      // 적재물 (골판지/랩) — 등급 톤 + 미세 명도 변주
+      d.position.set(p.x, p.y + cs.height * 0.13 + loadH / 2, p.z);
+      d.scale.set(cs.width * 0.8, loadH, cs.depth * 0.8);
+      d.updateMatrix();
+      load.setMatrixAt(i, d.matrix);
+      col.set(theme.load[v.grade] || '#9a8a72');
+      col.offsetHSL(0, 0, ((hh % 12) - 6) / 240); // ±명도 미세 변주
+      load.setColorAt(i, col);
       i += 1;
     });
-    mesh.count = i;
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    base.count = i;
+    load.count = i;
+    base.instanceMatrix.needsUpdate = true;
+    load.instanceMatrix.needsUpdate = true;
+    if (load.instanceColor) load.instanceColor.needsUpdate = true;
   }, [version, config, cells, cs.depth, cs.height, cs.width]);
 
   return (
-    <instancedMesh ref={ref} args={[undefined, undefined, max]} castShadow receiveShadow>
-      <boxGeometry />
-      <meshStandardMaterial roughness={0.65} metalness={0.05} />
-    </instancedMesh>
+    <group>
+      <instancedMesh ref={baseRef} args={[undefined, undefined, max]} castShadow receiveShadow>
+        <boxGeometry />
+        <meshStandardMaterial color={theme.wood} roughness={0.92} metalness={0} />
+      </instancedMesh>
+      <instancedMesh ref={loadRef} args={[undefined, undefined, max]} castShadow receiveShadow>
+        <boxGeometry />
+        <meshStandardMaterial roughness={0.88} metalness={0} />
+      </instancedMesh>
+    </group>
   );
 }
 
@@ -165,8 +213,7 @@ export default function Warehouse() {
   if (!config) return null;
   return (
     <group>
-      <RackBlocks config={config} />
-      <RackUprights config={config} />
+      <RackStructure config={config} />
       <GuideRails config={config} />
       <Pallets config={config} />
       <ExceptionMarkers config={config} />

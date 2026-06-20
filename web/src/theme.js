@@ -20,8 +20,14 @@ export const theme = {
   alarm: '#e5484d', // 알람/예외
   info: '#2f81f7', // 정보/이동
 
-  // ABC 등급(회전율) — 기능 구분색
+  // ABC 등급(회전율) — HUD/2D 도식용 기능 구분색
   grade: { A: '#e5654d', B: '#d9a005', C: '#3a86d4' },
+
+  // 3D 실사 화물 톤 — 골판지/크라프트/랩(차분), 등급은 미묘한 차이만
+  load: { A: '#a8794a', B: '#bb9a63', C: '#8c97a3' },
+  wood: '#6b5236', // 나무 파렛트
+  concrete: '#2b2f36', // 콘크리트 바닥
+  safety: '#caa53a', // 안전 라인(옐로)
 
   // 크레인 상태색
   crane: { IDLE: '#6e7b8b', TRAVELING: '#2f81f7', HANDLING: '#d9a005', RETURNING: '#26a69a' },
