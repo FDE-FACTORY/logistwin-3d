@@ -60,12 +60,15 @@ function GltfCrane({ data, config, modelRef }) {
     pallet.visible = !!data.carrying;
   });
 
-  // 상태 비콘 색
+  // 상태 비콘 — 발광(블룸)으로 랙 위 크레인 위치 식별
   if (beacon?.material) {
     const c = STATE_COLOR[data.state] || theme.crane.IDLE;
     beacon.material = beacon.material.clone();
     beacon.material.emissive?.set(c);
     beacon.material.color?.set(c);
+    beacon.material.emissiveIntensity = 3.5;
+    beacon.material.toneMapped = false;
+    beacon.scale.setScalar(1.8);
   }
 
   return (
