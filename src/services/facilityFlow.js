@@ -19,7 +19,7 @@ export class FacilityFlow {
     this.laneX = -2.8; // 전면 반송 레인
     this.stagingX = -9.5; // 도크 내부 스테이징
     this.wallX = -12.5; // 도크 외벽(트레일러 후면이 붙는 위치)
-    this.truckDockedX = this.wallX - 0.3; // 트레일러 후면 위치
+    this.truckDockedX = this.wallX + 0.8; // 트레일러 후면이 도크 도어에 밀착(약간 안쪽)
     this.truckArriveX = this.wallX - 26; // 입차 시작(후진)
     this.truckGoneX = this.wallX - 40; // 출차 종료(전진)
 

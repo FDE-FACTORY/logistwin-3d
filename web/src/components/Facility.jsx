@@ -41,8 +41,8 @@ function Building({ b }) {
     const z = b.z0 + ((b.z1 - b.z0) * i) / nTruss;
     trusses.push(
       <mesh key={`t${i}`} position={[(b.wallX + b.rackW) / 2, H, z]}>
-        <boxGeometry args={[b.rackW - b.wallX + 2, 0.18, 0.18]} />
-        <meshStandardMaterial color="#3a4250" metalness={0.4} roughness={0.6} />
+        <boxGeometry args={[b.rackW - b.wallX + 2, 0.16, 0.16]} />
+        <meshStandardMaterial color="#5c6675" metalness={0.4} roughness={0.6} />
       </mesh>,
     );
   }
@@ -190,7 +190,7 @@ function Forklift({ dock, b, cs }) {
     }
     phase.current = (phase.current + dt * 0.22) % 1;
     const p = phase.current;
-    const x1 = dock.truck.x - 2.2; // 트럭 후면 근처
+    const x1 = dock.truck.x + 1.6; // 트럭 후면 직전(스테이징 측)
     let x = x0;
     let fy = 0.25;
     let carry = false;
@@ -215,8 +215,8 @@ function Forklift({ dock, b, cs }) {
   });
 
   return (
-    <group ref={ref} position={[x0, 0, dock.z + 1.6]}>
-      {/* 카운터웨이트 바디 (forks가 +X=트럭 향함) */}
+    <group ref={ref} position={[x0, 0, dock.z + 0.6]} rotation={[0, Math.PI, 0]}>
+      {/* 카운터웨이트 바디 (forks가 로컬+X → 회전으로 트럭(-X) 향함) */}
       <mesh position={[-0.5, 0.55, 0]} castShadow>
         <boxGeometry args={[1.3, 0.9, 1.0]} />
         <meshStandardMaterial color="#c8761e" metalness={0.3} roughness={0.55} />
@@ -374,7 +374,7 @@ export default function Facility() {
           <DockDoor dock={d} b={b} />
           <Truck dock={d} />
           {d.kind === 'out' && <Staging x={b.stagingX + 1} z={d.z} count={d.staged} cs={cs} />}
-          {d.kind === 'out' && <Forklift dock={d} b={b} cs={cs} />}
+          {d.kind === 'out' && d.truck.state === 'docked' && <Forklift dock={d} b={b} cs={cs} />}
         </group>
       ))}
 
