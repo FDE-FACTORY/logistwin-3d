@@ -77,6 +77,13 @@ export class Warehouse {
     return rng ? rng.pick(matches) : matches[0];
   }
 
+  /** 재고가 있는(출고 가능) 셀 하나를 무작위로 반환, 없으면 null. */
+  findAnyStockedCell(rng) {
+    const stocked = this.cells.filter((c) => c.occupied && !c.reserved && c.pallet?.sku);
+    if (stocked.length === 0) return null;
+    return rng ? rng.pick(stocked) : stocked[0];
+  }
+
   /** 입고 가능한 빈 셀 목록 (예약 제외). aisle 지정 시 해당 통로만. */
   emptyCells({ aisle } = {}) {
     return this.cells.filter(

@@ -52,8 +52,9 @@ const cellDeltas = new Map();
 // 제어용 RNG(예외 주입) — 시뮬 RNG와 분리해 시뮬 결정론 유지.
 const controlRng = new Rng((Number(process.env.SIM_SEED ?? simConfig.seed) || 1) + 7919);
 const exceptions = new ExceptionManager();
-const EXC_EVERY_TICKS = Number(process.env.EXC_EVERY_TICKS) || 150; // 예외 주입 주기
-const EXC_MAX_ACTIVE = 3;
+const EXC_EVERY_TICKS = Number(process.env.EXC_EVERY_TICKS) || 220; // 예외 주입 주기
+const EXC_MAX_ACTIVE = 2; // 동시 활성 상한(화면 가림 방지)
+const EXC_TTL_TICKS = Number(process.env.EXC_TTL_TICKS) || 90; // 자동 해소까지(운영자 조치 수명)
 
 // TMS(배송 차량) 시뮬레이터 — 시뮬 RNG와 분리.
 const tms = new TmsSimulator(new Rng((Number(process.env.SIM_SEED ?? simConfig.seed) || 1) + 4231), {
@@ -219,6 +220,11 @@ clock.on('tick', ({ tick, virtualTime, hourOfDay }) => {
       tickEvents.push({ kind: 'exception', level: 'alarm', msg: `${exc.cellId}에서 ${exc.label} 예외가 발생했습니다.`, tick });
       recordEvent('exception', exc, tick);
     }
+  }
+  // 자동 해소 — 일정 시간 지난 예외는 운영자 조치 완료로 클리어(경보 누적 방지).
+  for (const exc of exceptions.autoResolve(warehouse, tick, EXC_TTL_TICKS)) {
+    cellDeltas.set(exc.cellId, { id: exc.cellId, occupied: true, exception: false });
+    tickEvents.push({ kind: 'exception', level: 'info', msg: `${exc.cellId} ${exc.label} 예외가 조치 완료되었습니다.`, tick });
   }
 
   tms.tick();

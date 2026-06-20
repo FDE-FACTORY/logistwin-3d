@@ -66,11 +66,17 @@ export class OrderGenerator extends EventEmitter {
   _materialize(intent, tick, virtualMs) {
     let { type, sku } = intent;
 
-    // OUTBOUND 정합성: 재고에 없으면 INBOUND로 대체.
+    // OUTBOUND 정합성: 의도한 SKU가 재고에 없으면 재고에 있는 다른 SKU로 출고 재배정한다.
+    // (WMS의 '가용 주문 릴리스' — 출고량을 유지해 적재율이 목표 밴드로 정상 배출됨.
+    //  과거엔 INBOUND로 전환했으나, 그 경우 입고 편향이 생겨 창고가 의도보다 차오른다.)
+    // 창고가 완전히 비어 출고 자체가 불가할 때만 INBOUND로 대체.
     if (type === OrderType.OUTBOUND) {
       const inStock = this.warehouse.findCellBySku(sku.sku, this.rng);
       if (!inStock) {
-        type = OrderType.INBOUND;
+        const alt = this.warehouse.findAnyStockedCell(this.rng);
+        const altSku = alt?.pallet?.sku && skuById[alt.pallet.sku];
+        if (altSku) sku = altSku;
+        else type = OrderType.INBOUND;
       }
     }
 

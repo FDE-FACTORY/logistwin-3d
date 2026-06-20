@@ -49,6 +49,24 @@ export class ExceptionManager {
     return exc;
   }
 
+  /**
+   * 자동 해소 — 발생 후 ttlTicks가 지난 예외를 운영자가 처리한 것으로 간주해 클리어.
+   * 무인 데모에서 경보가 영구히 쌓이지 않게 하고, 현장의 '발생→조치→해소' 수명주기를 반영.
+   * 반환: 자동 해소된 예외 배열.
+   */
+  autoResolve(warehouse, tick, ttlTicks) {
+    const expired = [];
+    for (const exc of this.active.values()) {
+      if (tick - exc.tick >= ttlTicks) expired.push(exc);
+    }
+    for (const exc of expired) {
+      this.active.delete(exc.id);
+      const cell = warehouse.byId.get(exc.cellId);
+      if (cell) cell.exception = false;
+    }
+    return expired;
+  }
+
   list() {
     return [...this.active.values()];
   }
