@@ -504,6 +504,76 @@ function Staging({ x, z, count, cs }) {
   );
 }
 
+/** 중층(메자닌) 관리 사무실 — 물류센터 전면을 내려다보는 2층 사무 공간. */
+function Mezzanine({ b }) {
+  const y = 3.5; // 중층 바닥 높이
+  const x0 = b.stagingX - 1.2;
+  const x1 = b.laneX + 1.2;
+  const z0 = b.z0 + 0.6;
+  const z1 = b.z0 + 6.5;
+  const w = x1 - x0;
+  const d = z1 - z0;
+  const cx = (x0 + x1) / 2;
+  const cz = (z0 + z1) / 2;
+  const officeH = 2.6;
+  const cols = [
+    [x0 + 0.25, z0 + 0.25],
+    [x1 - 0.25, z0 + 0.25],
+    [x0 + 0.25, z1 - 0.25],
+    [x1 - 0.25, z1 - 0.25],
+  ];
+  return (
+    <group>
+      {/* 지지 기둥 */}
+      {cols.map(([px, pz], i) => (
+        <mesh key={`c${i}`} position={[px, y / 2, pz]} castShadow>
+          <boxGeometry args={[0.22, y, 0.22]} />
+          <meshStandardMaterial color="#454f5e" metalness={0.5} roughness={0.5} />
+        </mesh>
+      ))}
+      {/* 중층 바닥 슬래브 */}
+      <mesh position={[cx, y, cz]} receiveShadow castShadow>
+        <boxGeometry args={[w, 0.18, d]} />
+        <meshStandardMaterial color="#39424e" metalness={0.2} roughness={0.7} />
+      </mesh>
+      {/* 난간(플로어를 향한 +X·전후 변) */}
+      {[
+        [cx, y + 0.55, z0 + 0.05, w, 0.08],
+        [cx, y + 0.55, z1 - 0.05, w, 0.08],
+      ].map(([px, py, pz, lw], i) => (
+        <mesh key={`r${i}`} position={[px, py, pz]}>
+          <boxGeometry args={[lw, 0.09, 0.06]} />
+          <meshStandardMaterial color={theme.safety} metalness={0.3} roughness={0.6} />
+        </mesh>
+      ))}
+      <mesh position={[x1 - 0.05, y + 0.55, cz]}>
+        <boxGeometry args={[0.06, 0.09, d]} />
+        <meshStandardMaterial color={theme.safety} metalness={0.3} roughness={0.6} />
+      </mesh>
+      {/* 사무실 캐빈 — 유리벽 + 창문 띠 + 평지붕 */}
+      <mesh position={[cx - 0.3, y + 0.09 + officeH / 2, cz]} castShadow>
+        <boxGeometry args={[w - 1.0, officeH, d - 0.8]} />
+        <meshStandardMaterial color="#7f8ba0" metalness={0.1} roughness={0.6} transparent opacity={0.45} />
+      </mesh>
+      <mesh position={[cx - 0.3, y + 0.09 + officeH * 0.62, cz]}>
+        <boxGeometry args={[w - 0.96, officeH * 0.42, d - 0.76]} />
+        <meshStandardMaterial color="#0f1620" metalness={0.5} roughness={0.18} transparent opacity={0.8} />
+      </mesh>
+      <mesh position={[cx - 0.3, y + 0.12 + officeH, cz]} castShadow>
+        <boxGeometry args={[w - 0.85, 0.12, d - 0.65]} />
+        <meshStandardMaterial color="#2f3742" metalness={0.3} roughness={0.6} />
+      </mesh>
+      {/* 계단(플로어→중층) */}
+      {Array.from({ length: 9 }).map((_, i) => (
+        <mesh key={`s${i}`} position={[x1 + 0.6, (y / 9) * (i + 0.5), z1 - 0.4 + i * 0.34]} castShadow>
+          <boxGeometry args={[1.1, 0.1, 0.36]} />
+          <meshStandardMaterial color="#4a5568" metalness={0.4} roughness={0.6} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 export default function Facility() {
   const facility = useStore((s) => s.facility);
   const config = useStore((s) => s.config);
@@ -557,6 +627,10 @@ export default function Facility() {
           {d.kind === 'out' && d.truck.state === 'docked' && <Forklift dock={d} b={b} cs={cs} />}
         </group>
       ))}
+
+      {/* 중층 관리 사무실 */}
+      <Mezzanine b={b} />
+      <ZoneLabel pos={[(b.stagingX + b.laneX) / 2, 7, b.z0 + 3.5]} text="관리 사무실" color={theme.info} />
 
       {/* 출고 컨베이어 + 컨베이어 위 팔레트 */}
       <Conveyor b={b} config={config} cs={cs} />

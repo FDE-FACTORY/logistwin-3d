@@ -232,6 +232,17 @@ samples/floorplan.dxf       # 예시 평면도 (80×45m, 임포트 데모용)
 
 > 후속 고도화 여지: 제원별 실사 glTF 크레인 모델, Kakao 실지도 키 연동, 라이브 배포.
 
+## 에셋 크레딧 (3D 모델)
+
+3D 뷰포트의 실사 장비 모델은 상용 가능 라이선스의 무료 에셋을 사용합니다.
+
+| 에셋 | 작가 | 라이선스 | 출처 |
+| --- | --- | --- | --- |
+| 지게차(Forklift) | KolosStudios | CC-BY 4.0 | [Poly Pizza](https://poly.pizza/m/DTQBuenKJY) |
+
+> CC-BY 에셋은 저작자 표시가 필요합니다(상기 표). HDRI/PBR 텍스처는 [Poly Haven](https://polyhaven.com) CC0,
+> 스태커 크레인은 Blender 절차적 생성 모델입니다.
+
 ## 참고 문헌
 
 - Bozer, Y.A. & White, J.A. (1984). *Travel-Time Models for Automated Storage/Retrieval Systems.* IIE Transactions, 16(4), 329–338.
