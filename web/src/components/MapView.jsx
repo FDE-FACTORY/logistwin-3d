@@ -245,11 +245,48 @@ function TmsPanel() {
   );
 }
 
+/** 모바일 하단 바 — 배송 요약 + 동의 토글 (md 미만). */
+function MobileTmsBar() {
+  const tms = useStore((s) => s.tms);
+  const sendCommand = useStore((s) => s.sendCommand);
+  if (!tms) return null;
+  const masked = tms.trucks.filter((t) => t.masked).length;
+  const active = tms.trucks.length - masked;
+  return (
+    <div
+      className="pointer-events-auto absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 border-t px-3 py-2 md:hidden"
+      style={{ background: `${theme.bgDeep}f2`, borderColor: theme.border }}
+    >
+      <div className="flex items-center gap-4 text-xs">
+        <span className="flex items-center gap-1.5">
+          <Dot color={theme.info} /> <span style={{ color: theme.textDim }}>운행</span>
+          <span className="tnum" style={{ color: theme.text }}>{active}</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <Dot color={theme.textFaint} /> <span style={{ color: theme.textDim }}>비공개</span>
+          <span className="tnum" style={{ color: theme.text }}>{masked}</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <Dot color={tms.businessHours ? theme.ok : theme.caution} />
+          <span style={{ color: theme.textDim }}>{tms.businessHours ? '업무시간' : '업무외'}</span>
+        </span>
+      </div>
+      <Btn
+        variant={tms.consentGlobal ? 'primary' : 'danger'}
+        onClick={() => sendCommand({ type: 'SET_CONSENT', value: !tms.consentGlobal })}
+      >
+        {tms.consentGlobal ? '동의됨' : '미동의'}
+      </Btn>
+    </div>
+  );
+}
+
 export default function MapView() {
   return (
     <div className="absolute inset-0">
       {KAKAO_KEY ? <KakaoMap /> : <FallbackMap />}
       <TmsPanel />
+      <MobileTmsBar />
     </div>
   );
 }

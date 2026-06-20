@@ -74,7 +74,18 @@ export default function Scene() {
         </Rig>
       )}
 
-      <OrbitControls makeDefault target={[0, ext.y * 0.35, 0]} maxPolarAngle={Math.PI / 2.05} />
+      <OrbitControls
+        makeDefault
+        target={[0, ext.y * 0.35, 0]}
+        maxPolarAngle={Math.PI / 2.05}
+        enableDamping
+        dampingFactor={0.09}
+        zoomSpeed={0.5}
+        rotateSpeed={0.7}
+        panSpeed={0.7}
+        minDistance={4}
+        maxDistance={Math.max(ext.x, ext.z) * 3 + 80}
+      />
     </Canvas>
   );
 }

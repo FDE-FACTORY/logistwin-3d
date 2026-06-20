@@ -1,4 +1,5 @@
-import { useRef, useMemo, Suspense } from 'react';
+import { useRef, useMemo, useEffect, Suspense } from 'react';
+import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import { useStore } from '../store.js';
@@ -32,12 +33,31 @@ function GltfCrane({ data, config, modelRef }) {
   const s = cs.height; // 1 레벨 = 1 모델미터 → 스케일 = 셀 높이
   const tx = data.x * cs.width;
   const tyModel = data.z - 1; // 모델 단위(레벨)
-  const tForkModel = data.state === 'HANDLING' ? (cs.depth * 0.55) / s : 0;
+  // 포크는 적재/추출(HANDLING) 순간에만 뻗고 주행 중엔 접힘.
+  const tForkModel = data.state === 'HANDLING' ? (cs.depth * 0.5) / s : 0;
+
+  // 운반 팔레트 — 포크 노드에 부착(포크와 함께 접히고/뻗음). carrying 시 표시.
+  const pallet = useMemo(() => {
+    const m = new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, 0.34, 0.6),
+      new THREE.MeshStandardMaterial({ color: '#c77512', roughness: 0.8 }),
+    );
+    m.position.set(0, 0.28, 0.5); // 포크 타인 위(glTF +Z = 랙 방향)
+    m.castShadow = true;
+    m.visible = false;
+    return m;
+  }, []);
+  useEffect(() => {
+    if (!fork) return;
+    fork.add(pallet);
+    return () => fork.remove(pallet);
+  }, [fork, pallet]);
 
   useFrame((_, dt) => {
     if (group.current) group.current.position.x = SMOOTH(group.current.position.x, tx, dt);
     if (carriage) carriage.position.y = SMOOTH(carriage.position.y, tyModel, dt);
     if (fork) fork.position.z = SMOOTH(fork.position.z, tForkModel, dt);
+    pallet.visible = !!data.carrying;
   });
 
   // 상태 비콘 색

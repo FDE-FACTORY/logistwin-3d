@@ -71,7 +71,7 @@ function ExceptionAlert() {
   const sendCommand = useStore((s) => s.sendCommand);
   if (!exceptions.length) return null;
   return (
-    <div className="pointer-events-auto absolute left-1/2 top-16 w-[min(440px,92vw)] -translate-x-1/2 space-y-2">
+    <div className="pointer-events-auto absolute left-4 top-16 w-[min(420px,calc(100vw-2rem))] space-y-2">
       {exceptions.slice(0, 3).map((e) => (
         <div
           key={e.id}
