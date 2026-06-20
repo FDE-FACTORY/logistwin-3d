@@ -6,6 +6,15 @@ ESG·TMS 지표까지 통합 관제하는 디지털 트윈 플랫폼입니다.
 > **Phase 1~6 구현 완료** — 백엔드 시뮬레이터 코어 · Dual-Command 최적화 · 3D/2D/지도 뷰 ·
 > 관제 대시보드(적재효율·예외·ESG) · TMS 배송 관제 · 배포 설정. 배포 가이드: [docs/DEPLOY.md](docs/DEPLOY.md)
 
+## 미리보기
+
+| 3D 디지털 트윈 | 2D 평면도 | 배송 관제(TMS) |
+| :---: | :---: | :---: |
+| ![3D 트윈](docs/img/hero_3d.png) | ![2D 평면도](docs/img/view_2d.png) | ![배송 관제](docs/img/view_tms.png) |
+
+> 실시간 크레인 주행/승강(보간), 적재 효율화·예외 경보, ESG 지표, 가상 트럭 추적까지
+> 한 화면에서 관제. 상단 토글로 3D / 평면 / 배송 뷰 전환.
+
 ---
 
 ## 개요
@@ -110,6 +119,32 @@ Railway 배포 시 `PORT` 자동 주입 + `/health` 헬스체크 대응.
 ---
 
 ## 아키텍처
+
+```mermaid
+flowchart LR
+  CAD["CAD 평면도<br/>(DXF/수동 치수)"] -->|레이아웃 자동설계| SIM
+
+  subgraph BE["백엔드 · Node (Railway)"]
+    SIM["시뮬레이터 코어<br/>SimClock · 수요모델 · 크레인 FSM"]
+    ALGO["Dual-Command 최적화<br/>+ ESG 에너지 엔진"]
+    CTRL["관제 · TMS<br/>적재효율 · 예외 · 트럭"]
+    WS(["Socket.io<br/>init · state · patch"])
+    DB[("Neon Postgres<br/>(선택)")]
+    SIM --> ALGO --> WS
+    CTRL --> WS
+    SIM -.영속화.-> DB
+  end
+
+  subgraph FE["프론트 · React + R3F (Vercel)"]
+    STORE["zustand 스토어"]
+    VIEWS["3D 트윈 · 2D 평면도 · 배송 관제"]
+    HUD["관제 HUD · 대시보드"]
+    STORE --> VIEWS & HUD
+  end
+
+  WS <-->|WebSocket| STORE
+  HUD -->|명령| WS
+```
 
 ```
 src/
