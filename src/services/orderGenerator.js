@@ -51,7 +51,8 @@ export class OrderGenerator extends EventEmitter {
   }
 
   _handleTick({ tick, virtualMs, hourOfDay }) {
-    const intents = this.demandModel.generateForTick(hourOfDay);
+    const fillRate = this.warehouse.stats().fillRate; // 적재율 피드백
+    const intents = this.demandModel.generateForTick(hourOfDay, fillRate);
     for (const intent of intents) {
       const order = this._materialize(intent, tick, virtualMs);
       if (!order) continue;
