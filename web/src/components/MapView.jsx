@@ -44,6 +44,9 @@ function FallbackMap() {
       const W = canvas.clientWidth;
       const H = canvas.clientHeight;
       const pad = 40;
+      // 상단 안전 영역 — 좁은 화면은 TopBar가 2행으로 접혀 더 높음(캡션 충돌 방지).
+      const isNarrow = W < 640;
+      const safeTop = isNarrow ? 96 : 52;
       const px = (lng) => pad + ((lng - BOUNDS.lngMin) / (BOUNDS.lngMax - BOUNDS.lngMin)) * (W - pad * 2);
       const py = (lat) => pad + (1 - (lat - BOUNDS.latMin) / (BOUNDS.latMax - BOUNDS.latMin)) * (H - pad * 2);
 
@@ -66,7 +69,7 @@ function FallbackMap() {
       ctx.fillStyle = theme.textFaint;
       ctx.font = '11px ui-sans-serif';
       ctx.textAlign = 'left';
-      ctx.fillText('수도권 배송권역 (시뮬 맵)', pad, pad - 14);
+      ctx.fillText('수도권 배송권역 (시뮬 맵)', pad, safeTop);
 
       if (!tms) {
         ctx.fillStyle = theme.textDim; ctx.textAlign = 'center';
@@ -120,11 +123,12 @@ function FallbackMap() {
         ctx.fillText(`${t.id} · ${t.etaMin}분`, st.x + 8, st.y + 3);
       }
 
-      // 마스킹된 차량 안내
+      // 마스킹된 차량 안내 — 좌상단 캡션 아래(모바일 하단바에 가리지 않도록).
       if (maskedCount > 0) {
         ctx.fillStyle = theme.textFaint;
+        ctx.font = '11px ui-sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText(`위치 비공개 ${maskedCount}대 (동의 미설정 또는 업무시간 외)`, pad, H - pad + 22);
+        ctx.fillText(`위치 비공개 ${maskedCount}대 (동의 미설정 또는 업무시간 외)`, pad, safeTop + 18);
       }
 
       raf = requestAnimationFrame(draw);
@@ -226,7 +230,7 @@ function TmsPanel() {
           </Btn>
         </div>
         <p className="mt-2 text-[11px] leading-relaxed" style={{ color: theme.textDim }}>
-          동의를 해제하면 배송 위치를 마스킹합니다. 업무시간(08~20시) 외에는 자동으로 위치 수집을 차단합니다.
+          동의를 해제하면 배송 위치를 마스킹합니다. 업무시간(06~23시) 외에는 자동으로 위치 수집을 차단합니다.
         </p>
         <div className="mt-2 flex items-center gap-2 text-[11px]">
           <Dot color={tms.businessHours ? theme.ok : theme.caution} />

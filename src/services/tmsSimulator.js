@@ -7,7 +7,7 @@
  *
  * 컴플라이언스(개인위치정보):
  *   - 트럭별 `consent`(위치 수집 동의)가 없으면 위치를 마스킹.
- *   - 업무 시간(08~20시) 외에는 위치 수집을 자동 차단(마스킹).
+ *   - 업무 시간(06~23시) 외에는 위치 수집을 자동 차단(마스킹).
  */
 const DC = { lat: 37.4563, lng: 126.7052, name: '인천 물류센터' }; // 인천 일대
 
@@ -76,7 +76,7 @@ export class TmsSimulator {
 
   /** 현재 스냅샷 (마스킹 적용). */
   snapshot(hourOfDay) {
-    const businessHours = hourOfDay >= 8 && hourOfDay < 20;
+    const businessHours = hourOfDay >= 6 && hourOfDay < 23; // 택배 운영시간(06~23시)
     return {
       dc: this.dc,
       businessHours,

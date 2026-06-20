@@ -56,41 +56,61 @@ export default function Plan2D() {
 
       const ext = warehouseExtent(config);
       const cs = config.cellSize;
-      const margin = 70;
-      const scale = Math.min((W - margin * 2) / ext.x, (H - margin * 2) / ext.z);
-      const offX = (W - ext.x * scale) / 2;
-      const offY = (H - ext.z * scale) / 2;
-      const sx = (wx) => offX + wx * scale;
-      const sy = (wz) => offY + wz * scale;
+      // 세로(모바일/태블릿) 화면에서는 긴 X축(베이)을 세로로 돌려 화면을 채운다.
+      // 라벨은 회전하지 않고 정방향 유지(가독성). project()가 두 방향을 모두 처리.
+      const portrait = H > W * 1.1;
+      // 화면 크롬(상단 툴바·우측 컨트롤 패널·하단바)을 피해 그릴 가용 영역 계산.
+      const wide = W >= 768; // md — 우측 컨트롤 컬럼이 보이는 폭
+      const topInset = 60; // 상단 툴바
+      const rightInset = wide ? 312 : 0; // 우측 컨트롤 컬럼(운영지표/추이/제어)
+      const bottomInset = wide ? 16 : 56; // 데스크톱 범례 여백 / 모바일 하단바
+      const margin = Math.min(W, H) < 520 ? 22 : 40;
+      const availW = W - rightInset;
+      const availH = H - topInset - bottomInset;
+      const aw = portrait ? ext.z : ext.x; // 캔버스 가로에 대응하는 월드 폭
+      const ah = portrait ? ext.x : ext.z; // 캔버스 세로에 대응하는 월드 높이
+      const scale = Math.min((availW - margin * 2) / aw, (availH - margin * 2) / ah);
+      const offX = (availW - aw * scale) / 2;
+      const offY = topInset + (availH - ah * scale) / 2;
+      const project = (wx, wz) =>
+        portrait ? [offX + wz * scale, offY + wx * scale] : [offX + wx * scale, offY + wz * scale];
 
       // 랙 블록 + 통로 라벨
       ctx.lineWidth = 1;
       for (let a = 1; a <= config.aisles; a++) {
         for (const side of ['L', 'R']) {
           const z = (a - 1) * config.aisleSpacing + (side === 'R' ? cs.depth : 0);
-          const x0 = sx(-cs.width / 2);
-          const y0 = sy(z - cs.depth * 0.46);
+          const [ax, ay] = project(-cs.width / 2, z - cs.depth * 0.46);
+          const [bx, by] = project(-cs.width / 2 + ext.x, z - cs.depth * 0.46 + cs.depth * 0.92);
+          const rx = Math.min(ax, bx);
+          const ry = Math.min(ay, by);
+          const rw = Math.abs(bx - ax);
+          const rh = Math.abs(by - ay);
           ctx.fillStyle = 'rgba(20,26,33,0.6)';
           ctx.strokeStyle = theme.borderStrong;
-          ctx.fillRect(x0, y0, ext.x * scale, cs.depth * 0.92 * scale);
-          ctx.strokeRect(x0, y0, ext.x * scale, cs.depth * 0.92 * scale);
+          ctx.fillRect(rx, ry, rw, rh);
+          ctx.strokeRect(rx, ry, rw, rh);
         }
         const zc = (a - 1) * config.aisleSpacing + cs.depth / 2;
+        const [lx, ly] = project(-cs.width, zc);
         ctx.fillStyle = theme.textDim;
         ctx.font = '11px ui-sans-serif';
-        ctx.textAlign = 'right';
-        ctx.fillText(`A${a}`, sx(-cs.width) - 8, sy(zc) + 4);
+        ctx.textAlign = portrait ? 'center' : 'right';
+        ctx.fillText(`A${a}`, portrait ? lx : lx - 8, portrait ? ly - 4 : ly + 4);
       }
 
-      // 팔레트 (점유 셀)
-      const pw = Math.max(1.5, cs.width * 0.8 * scale);
-      const ph = Math.max(1.5, cs.depth * 0.66 * scale);
+      // 팔레트 (점유 셀) — 방향에 따라 가로/세로 치수 교환
+      const cellW = Math.max(1.5, cs.width * 0.8 * scale); // 월드 X 방향
+      const cellD = Math.max(1.5, cs.depth * 0.66 * scale); // 월드 Z 방향
+      const pw = portrait ? cellD : cellW; // 화면 가로
+      const ph = portrait ? cellW : cellD; // 화면 세로
       cells.forEach((v, id) => {
         if (!v.occupied) return;
         const p = cellWorldFromId(config, id);
         if (!p) return;
+        const [cx, cy] = project(p.x, p.z);
         ctx.fillStyle = GRADE_COLOR[v.grade] || '#64748b';
-        ctx.fillRect(sx(p.x) - pw / 2, sy(p.z) - ph / 2, pw, ph);
+        ctx.fillRect(cx - pw / 2, cy - ph / 2, pw, ph);
       });
 
       // 예외 셀 강조 (적색 펄스 외곽)
@@ -102,26 +122,45 @@ export default function Plan2D() {
         for (const e of exceptions) {
           const p = cellWorldFromId(config, e.cellId);
           if (!p) continue;
-          ctx.strokeRect(sx(p.x) - pw / 2 - 1.5, sy(p.z) - ph / 2 - 1.5, pw + 3, ph + 3);
+          const [cx, cy] = project(p.x, p.z);
+          ctx.strokeRect(cx - pw / 2 - 1.5, cy - ph / 2 - 1.5, pw + 3, ph + 3);
         }
         ctx.globalAlpha = 1;
         ctx.lineWidth = 1;
       }
 
-      // I/O 출하장 (좌측 라인)
-      ctx.fillStyle = theme.ok;
-      ctx.fillRect(sx(-cs.width * 1.5) - 2, offY - 4, 5, ext.z * scale + 8);
+      // I/O 출하장 (랙 앞단 라인)
+      const [iax, iay] = project(-cs.width * 1.5, 0);
+      const [ibx, iby] = project(-cs.width * 1.5, ext.z);
+      ctx.strokeStyle = theme.ok;
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(iax, iay);
+      ctx.lineTo(ibx, iby);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      const [iox, ioy] = project(-cs.width * 1.5, ext.z / 2);
       ctx.fillStyle = theme.ok;
       ctx.font = '10px ui-sans-serif';
       ctx.textAlign = 'center';
-      ctx.save();
-      ctx.translate(sx(-cs.width * 1.5) - 14, offY + (ext.z * scale) / 2);
-      ctx.rotate(-Math.PI / 2);
-      ctx.fillText('I/O 출하장', 0, 0);
-      ctx.restore();
+      if (portrait) {
+        ctx.textAlign = 'left';
+        ctx.fillText('I/O 출하장', Math.min(iax, ibx), ioy - 10);
+      } else {
+        ctx.save();
+        ctx.translate(iox - 14, ioy);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText('I/O 출하장', 0, 0);
+        ctx.restore();
+      }
 
       // 크레인 (평면 footprint 심볼)
       const map = anim.current;
+      const exW = Math.max(4, cs.width * 1.1 * scale); // 월드 X 방향 크기
+      const exZ = Math.max(8, cs.depth * 1.8 * scale); // 월드 Z 방향 크기
+      const fwS = portrait ? exZ : exW; // 화면 가로
+      const fhS = portrait ? exW : exZ; // 화면 세로
+      const forkLen = Math.max(4, cs.depth * 0.5 * scale);
       for (const c of cranes) {
         const tx = c.x * cs.width;
         const tz = (c.aisle - 1) * config.aisleSpacing + cs.depth / 2;
@@ -132,29 +171,27 @@ export default function Plan2D() {
         }
         st.x += (tx - st.x) * 0.16; // 부드러운 주행 보간
         const col = STATE_COLOR[c.state] || '#94a3b8';
-        const fw = Math.max(4, cs.width * 1.1 * scale);
-        const fh = Math.max(8, cs.depth * 1.8 * scale);
-        const cx = sx(st.x);
-        const cy = sy(tz);
+        const [cx, cy] = project(st.x, tz);
         // footprint
         ctx.fillStyle = col + 'bb';
         ctx.strokeStyle = col;
         ctx.lineWidth = 1.5;
-        ctx.fillRect(cx - fw / 2, cy - fh / 2, fw, fh);
-        ctx.strokeRect(cx - fw / 2, cy - fh / 2, fw, fh);
+        ctx.fillRect(cx - fwS / 2, cy - fhS / 2, fwS, fhS);
+        ctx.strokeRect(cx - fwS / 2, cy - fhS / 2, fwS, fhS);
         // 마스트 점
         ctx.fillStyle = '#e2e8f0';
         ctx.fillRect(cx - 3, cy - 3, 6, 6);
-        // 적재(포크) 표시 — HANDLING/carrying 시 측면으로 돌출
+        // 적재(포크) 표시 — HANDLING/carrying 시 +Z(랙) 방향으로 돌출
         if (c.state === 'HANDLING' || c.carrying) {
           ctx.fillStyle = c.carrying ? '#d97706' : col;
-          ctx.fillRect(cx - 4, cy + fh / 2, 8, Math.max(4, cs.depth * 0.5 * scale));
+          if (portrait) ctx.fillRect(cx + fwS / 2, cy - 4, forkLen, 8);
+          else ctx.fillRect(cx - 4, cy + fhS / 2, 8, forkLen);
         }
         // 라벨
         ctx.fillStyle = col;
         ctx.font = '10px ui-sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(c.id, cx, cy - fh / 2 - 4);
+        ctx.fillText(c.id, cx, cy - fhS / 2 - 4);
       }
 
       raf = requestAnimationFrame(draw);
