@@ -2,6 +2,7 @@ import { useRef, useMemo, Suspense } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import { useStore } from '../store.js';
+import { theme } from '../theme.js';
 
 /**
  * 스태커 크레인 렌더 — 구조적으로 정확한 절차적 모델(기본) + glTF 교체 경로.
@@ -20,12 +21,7 @@ const AVAILABLE_GLTF = new Set([
   // 'crane_highbay.glb',  // 실사 에셋을 넣으면 여기에 등록
 ]);
 
-const STATE_COLOR = {
-  IDLE: '#64748b',
-  TRAVELING: '#22d3ee',
-  HANDLING: '#f59e0b',
-  RETURNING: '#a78bfa',
-};
+const STATE_COLOR = theme.crane;
 
 /** 공통 애니메이션 훅 — 목표 좌표를 매 프레임 보간. */
 function useCraneAnim(group, carriage, fork, target) {

@@ -4,6 +4,7 @@ import { Edges } from '@react-three/drei';
 import { useStore } from '../store.js';
 import { cellWorldFromId } from '../coords.js';
 import { GRADE_COLOR } from '../config.js';
+import { theme } from '../theme.js';
 
 /** 통로별·면별 랙 블록 외곽(반투명 + 와이어). */
 function RackBlocks({ config }) {
@@ -138,6 +139,27 @@ function IOStation({ config }) {
   );
 }
 
+/** 예외 셀 강조 — 적색 와이어 케이지. */
+function ExceptionMarkers({ config }) {
+  const exceptions = useStore((s) => s.exceptions);
+  const cs = config.cellSize;
+  if (!exceptions.length) return null;
+  return (
+    <group>
+      {exceptions.map((e) => {
+        const p = cellWorldFromId(config, e.cellId);
+        if (!p) return null;
+        return (
+          <mesh key={e.id} position={[p.x, p.y + cs.height * 0.5, p.z]}>
+            <boxGeometry args={[cs.width * 0.98, cs.height * 0.92, cs.depth * 0.98]} />
+            <meshBasicMaterial color={theme.alarm} wireframe transparent opacity={0.9} toneMapped={false} />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
 export default function Warehouse() {
   const config = useStore((s) => s.config);
   if (!config) return null;
@@ -147,6 +169,7 @@ export default function Warehouse() {
       <RackUprights config={config} />
       <GuideRails config={config} />
       <Pallets config={config} />
+      <ExceptionMarkers config={config} />
       <IOStation config={config} />
     </group>
   );

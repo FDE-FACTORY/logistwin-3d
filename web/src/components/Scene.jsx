@@ -2,6 +2,7 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, ContactShadows } from '@react-three/drei';
 import { useStore } from '../store.js';
 import { warehouseExtent } from '../coords.js';
+import { theme } from '../theme.js';
 import Warehouse from './Warehouse.jsx';
 import Crane from './Crane.jsx';
 
@@ -14,7 +15,7 @@ function Floor({ ext }) {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[ext.x / 2, -0.04, ext.z / 2]} receiveShadow>
       <planeGeometry args={[ext.x + 40, ext.z + 40]} />
-      <meshStandardMaterial color="#0e1626" metalness={0.1} roughness={0.95} />
+      <meshStandardMaterial color="#10151c" metalness={0.1} roughness={0.95} />
     </mesh>
   );
 }
@@ -34,8 +35,8 @@ export default function Scene() {
       camera={{ position: cam, fov: 48, far: 6000 }}
       gl={{ antialias: true, toneMappingExposure: 1.15 }}
     >
-      <color attach="background" args={['#080c16']} />
-      <fog attach="fog" args={['#080c16', ext.z * 2 + 40, ext.z * 5 + 160]} />
+      <color attach="background" args={[theme.bgDeep]} />
+      <fog attach="fog" args={[theme.bgDeep, ext.z * 2 + 40, ext.z * 5 + 160]} />
 
       {/* 조명: 키(그림자) + 반구 채움 + 림 */}
       <ambientLight intensity={0.32} />

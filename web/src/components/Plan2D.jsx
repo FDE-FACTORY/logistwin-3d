@@ -2,6 +2,7 @@ import { useRef, useEffect } from 'react';
 import { useStore } from '../store.js';
 import { warehouseExtent, cellWorldFromId } from '../coords.js';
 import { GRADE_COLOR } from '../config.js';
+import { theme } from '../theme.js';
 
 /**
  * 2D 평면도 뷰 (Canvas2D) — 엔지니어링 도면 느낌의 상단 직교 표현.
@@ -16,7 +17,7 @@ import { GRADE_COLOR } from '../config.js';
  * 좌표: 월드 X(베이) → 캔버스 가로, 월드 Z(통로 횡) → 캔버스 세로. 화면에 맞춰 fit.
  * 크레인 위치는 매 프레임 보간(rAF)하여 부드럽게 주행.
  */
-const STATE_COLOR = { IDLE: '#64748b', TRAVELING: '#22d3ee', HANDLING: '#f59e0b', RETURNING: '#a78bfa' };
+const STATE_COLOR = theme.crane;
 
 export default function Plan2D() {
   const ref = useRef(null);
@@ -37,11 +38,11 @@ export default function Plan2D() {
     window.addEventListener('resize', resize);
 
     const draw = () => {
-      const { config, cells, cranes } = useStore.getState();
+      const { config, cells, cranes, exceptions } = useStore.getState();
       const W = canvas.clientWidth;
       const H = canvas.clientHeight;
       ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = '#080c16';
+      ctx.fillStyle = theme.bgDeep;
       ctx.fillRect(0, 0, W, H);
 
       if (!config) {
@@ -69,13 +70,13 @@ export default function Plan2D() {
           const z = (a - 1) * config.aisleSpacing + (side === 'R' ? cs.depth : 0);
           const x0 = sx(-cs.width / 2);
           const y0 = sy(z - cs.depth * 0.46);
-          ctx.fillStyle = 'rgba(22,33,59,0.55)';
-          ctx.strokeStyle = '#34507f';
+          ctx.fillStyle = 'rgba(20,26,33,0.6)';
+          ctx.strokeStyle = theme.borderStrong;
           ctx.fillRect(x0, y0, ext.x * scale, cs.depth * 0.92 * scale);
           ctx.strokeRect(x0, y0, ext.x * scale, cs.depth * 0.92 * scale);
         }
         const zc = (a - 1) * config.aisleSpacing + cs.depth / 2;
-        ctx.fillStyle = '#94a3b8';
+        ctx.fillStyle = theme.textDim;
         ctx.font = '11px ui-sans-serif';
         ctx.textAlign = 'right';
         ctx.fillText(`A${a}`, sx(-cs.width) - 8, sy(zc) + 4);
@@ -92,10 +93,25 @@ export default function Plan2D() {
         ctx.fillRect(sx(p.x) - pw / 2, sy(p.z) - ph / 2, pw, ph);
       });
 
+      // 예외 셀 강조 (적색 펄스 외곽)
+      if (exceptions && exceptions.length) {
+        const a = 0.5 + 0.5 * Math.abs(Math.sin(performance.now() / 320));
+        ctx.strokeStyle = theme.alarm;
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = a;
+        for (const e of exceptions) {
+          const p = cellWorldFromId(config, e.cellId);
+          if (!p) continue;
+          ctx.strokeRect(sx(p.x) - pw / 2 - 1.5, sy(p.z) - ph / 2 - 1.5, pw + 3, ph + 3);
+        }
+        ctx.globalAlpha = 1;
+        ctx.lineWidth = 1;
+      }
+
       // I/O 출하장 (좌측 라인)
-      ctx.fillStyle = '#10b981';
+      ctx.fillStyle = theme.ok;
       ctx.fillRect(sx(-cs.width * 1.5) - 2, offY - 4, 5, ext.z * scale + 8);
-      ctx.fillStyle = '#34d399';
+      ctx.fillStyle = theme.ok;
       ctx.font = '10px ui-sans-serif';
       ctx.textAlign = 'center';
       ctx.save();
