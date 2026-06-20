@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { useStore } from '../store.js';
 import { cellWorldFromId } from '../coords.js';
 import { theme } from '../theme.js';
+import { useTiled } from '../useTiled.js';
 
 /**
  * 셀렉티브 파렛트 랙 구조 — 철골 업라이트 프레임 + 오렌지 로드빔(실사 형상).
@@ -45,6 +46,7 @@ function RackStructure({ config }) {
     return arr;
   }, [config, cs.width, cs.height, cs.depth, blockW, zf]);
 
+  const metalTex = useTiled('/textures/metal_diff.jpg', '/textures/metal_rough.jpg', 1, 4);
   const upRef = useRef();
   const beamRef = useRef();
   useLayoutEffect(() => {
@@ -73,7 +75,7 @@ function RackStructure({ config }) {
     <group>
       <instancedMesh ref={upRef} args={[undefined, undefined, uprights.length]} castShadow receiveShadow>
         <boxGeometry />
-        <meshStandardMaterial color="#41506a" metalness={0.55} roughness={0.5} />
+        <meshStandardMaterial {...metalTex} color="#5a6478" metalness={0.6} roughness={0.5} />
       </instancedMesh>
       <instancedMesh ref={beamRef} args={[undefined, undefined, beams.length]} castShadow>
         <boxGeometry />
@@ -123,6 +125,7 @@ function Pallets({ config }) {
   const version = useStore((s) => s.cellsVersion);
   const cs = config.cellSize;
   const max = config.aisles * 2 * config.baysPerSide * config.levels;
+  const woodTex = useTiled('/textures/wood_diff.jpg', '/textures/wood_rough.jpg', 1, 1);
 
   useEffect(() => {
     const base = baseRef.current;
@@ -165,7 +168,7 @@ function Pallets({ config }) {
     <group>
       <instancedMesh ref={baseRef} args={[undefined, undefined, max]} castShadow receiveShadow>
         <boxGeometry />
-        <meshStandardMaterial color={theme.wood} roughness={0.92} metalness={0} />
+        <meshStandardMaterial {...woodTex} color="#a07b45" roughness={0.9} metalness={0} />
       </instancedMesh>
       <instancedMesh ref={loadRef} args={[undefined, undefined, max]} castShadow receiveShadow>
         <boxGeometry />

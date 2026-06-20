@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { useStore } from '../store.js';
 import { theme } from '../theme.js';
+import { useTiled } from '../useTiled.js';
 
 const lerp = (c, t, k) => c + (t - c) * k;
 
@@ -31,6 +32,7 @@ function ZoneLabel({ pos, text, color }) {
 /** 건물 셸 — 도크 외벽 + 후면/측벽(카메라 반대편) + 지붕 트러스 + 천장 조명. */
 function Building({ b }) {
   const H = b.height + 1;
+  const wallTex = useTiled('/textures/wall_diff.jpg', '/textures/wall_rough.jpg', 10, 4);
   const trusses = [];
   const nTruss = Math.max(3, Math.round((b.z1 - b.z0) / 3));
   for (let i = 0; i <= nTruss; i++) {
@@ -58,14 +60,14 @@ function Building({ b }) {
   return (
     <group>
       {/* 도크 외벽 (-X) */}
-      <mesh position={[b.wallX - 0.15, H / 2, (b.z0 + b.z1) / 2]}>
+      <mesh position={[b.wallX - 0.15, H / 2, (b.z0 + b.z1) / 2]} receiveShadow>
         <boxGeometry args={[0.3, H, b.z1 - b.z0]} />
-        <meshStandardMaterial color="#454c57" metalness={0.1} roughness={0.85} />
+        <meshStandardMaterial {...wallTex} color="#9097a1" metalness={0.35} roughness={0.78} />
       </mesh>
       {/* 후면 끝벽 (-Z, 카메라 반대편) */}
-      <mesh position={[(b.wallX + b.rackW) / 2, H / 2, b.z0]}>
+      <mesh position={[(b.wallX + b.rackW) / 2, H / 2, b.z0]} receiveShadow>
         <boxGeometry args={[b.rackW - b.wallX + 1, H, 0.3]} />
-        <meshStandardMaterial color="#454c57" metalness={0.1} roughness={0.85} />
+        <meshStandardMaterial {...wallTex} color="#9097a1" metalness={0.35} roughness={0.78} />
       </mesh>
       {trusses}
       {lights}
