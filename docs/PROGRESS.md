@@ -14,11 +14,23 @@
 - **Phase 6 배포 설정**: Dockerfile·railway.json·vercel.json·CI(.github/workflows)·.env.example,
   Neon Postgres schema+db.js(env 게이트, 비차단 배치 영속화), docs/DEPLOY.md, README 갱신
 
-## 남은 작업 (선택/후속)
-- 라이브 배포(사용자 Railway/Vercel/Neon 로그인 필요) — 설정/문서는 준비 완료
-- 제원별 실사 glTF 크레인 모델 에셋(현재 절차적 모델 + 교체 훅 대기)
-- Kakao 실지도 키 연동(현재 시뮬 맵 폴백)
+## 추가 완료 (Phase 6 이후)
+- **Blender 실사형 크레인 glTF** — `scripts/blender/build_crane.py`로 생성, `web/public/models/crane_standard.glb`.
+  carriage/fork 노드 애니메이션 매핑(Crane.jsx). 포터블 Blender: `C:\Users\Codelab\tools\blender\...`
+- **적재율 균형 피드백** — 수요모델이 ~50% 밴드 유지(데모 가독성). compare 벤치마크 불변(34.5%/31%)
+- **README 미리보기 스크린샷 + Mermaid 아키텍처 다이어그램**(docs/img)
+
+## 남은 작업 (선택/후속 — 사용자 계정/에셋 필요)
+- 라이브 배포(Railway/Vercel/Neon 로그인) — 설정/문서 준비 완료, 로그인만 하면 됨
+- 크레인 제원별 변형 glb(highbay/heavyduty 등) — 현재 standard glb + 나머지 절차적 폴백
+- Kakao 실지도 키(`VITE_KAKAO_MAP_KEY`) — 현재 시뮬 맵 폴백
 - 포트폴리오 카드 링크를 배포 URL로 교체(현재 repo 링크)
+
+## 크레인 glb 재생성 방법
+```
+& "C:\Users\Codelab\tools\blender\blender-4.2.12-windows-x64\blender.exe" --background \
+  --python scripts/blender/build_crane.py -- 8 web/public/models/crane_standard.glb
+```
 
 ## 작업 원칙 (사용자 지시)
 - 업계 최고 품질·실수 제로, 매 단계 E2E 검증 + 리팩토링 검증
