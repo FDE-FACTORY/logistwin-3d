@@ -1,12 +1,9 @@
 import { useRef, useMemo } from 'react';
-import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { Html, useGLTF } from '@react-three/drei';
+import { Html } from '@react-three/drei';
 import { useStore } from '../store.js';
 import { theme } from '../theme.js';
 import { useTiled } from '../useTiled.js';
-
-useGLTF.preload('/models/truck.glb');
 
 const lerp = (c, t, k) => c + (t - c) * k;
 
@@ -32,10 +29,29 @@ function ZoneLabel({ pos, text, color }) {
   );
 }
 
-/** 건물 셸 — 도크 외벽 + 후면/측벽(카메라 반대편) + 지붕 트러스 + 천장 조명. */
-function Building({ b }) {
+// 도크 개구부 치수 — 외벽에 뚫는 구멍 + 도어 프레임 공유.
+const DOCK_OPEN_HALF = 1.7; // 개구부 폭 절반(≈3.4m)
+const DOCK_OPEN_TOP = 3.8; // 개구부 상단 높이
+
+/** 건물 셸 — 도크 개구부가 뚫린 외벽 + 후면/측벽 + 지붕 트러스 + 천장 조명. */
+function Building({ b, docks = [] }) {
   const H = b.height + 1;
   const wallTex = useTiled('/textures/wall_diff.jpg', '/textures/wall_rough.jpg', 10, 4);
+
+  // −X 외벽을 도크 개구부 기준으로 분할 — 개구부 상단 인방(lintel) + 사이 벽체 세그먼트.
+  // 외부에서 각 도크의 도어/셔터가 그대로 보이도록(통짜 벽 제거).
+  const lowerSegs = useMemo(() => {
+    const zs = docks.map((d) => d.z).sort((p, q) => p - q);
+    const segs = [];
+    let cursor = b.z0;
+    for (const z of zs) {
+      const gapStart = z - DOCK_OPEN_HALF;
+      if (gapStart > cursor) segs.push([cursor, gapStart]);
+      cursor = Math.max(cursor, z + DOCK_OPEN_HALF);
+    }
+    if (cursor < b.z1) segs.push([cursor, b.z1]);
+    return segs;
+  }, [docks, b.z0, b.z1]);
   const trusses = [];
   const nTruss = Math.max(3, Math.round((b.z1 - b.z0) / 3));
   for (let i = 0; i <= nTruss; i++) {
@@ -62,11 +78,17 @@ function Building({ b }) {
   }
   return (
     <group>
-      {/* 도크 외벽 (-X) */}
-      <mesh position={[b.wallX - 0.15, H / 2, (b.z0 + b.z1) / 2]} receiveShadow>
-        <boxGeometry args={[0.3, H, b.z1 - b.z0]} />
+      {/* 도크 외벽 (-X) — 개구부 상단 인방 + 도크 사이 벽체 세그먼트 */}
+      <mesh position={[b.wallX - 0.15, (DOCK_OPEN_TOP + H) / 2, (b.z0 + b.z1) / 2]} receiveShadow>
+        <boxGeometry args={[0.3, H - DOCK_OPEN_TOP, b.z1 - b.z0]} />
         <meshStandardMaterial {...wallTex} color="#9097a1" metalness={0.35} roughness={0.78} />
       </mesh>
+      {lowerSegs.map(([s0, s1], i) => (
+        <mesh key={`seg${i}`} position={[b.wallX - 0.15, DOCK_OPEN_TOP / 2, (s0 + s1) / 2]} receiveShadow>
+          <boxGeometry args={[0.3, DOCK_OPEN_TOP, s1 - s0]} />
+          <meshStandardMaterial {...wallTex} color="#9097a1" metalness={0.35} roughness={0.78} />
+        </mesh>
+      ))}
       {/* 후면 끝벽 (-Z, 카메라 반대편) */}
       <mesh position={[(b.wallX + b.rackW) / 2, H / 2, b.z0]} receiveShadow>
         <boxGeometry args={[b.rackW - b.wallX + 1, H, 0.3]} />
@@ -113,6 +135,21 @@ function DockDoor({ dock, b }) {
         <boxGeometry args={[0.05, 3.1, 3.0]} />
         <meshStandardMaterial color="#090c10" />
       </mesh>
+      {/* 외부 도어 트림 — 개구부 양측 기둥 + 색상 헤더 + 번호 플레이트(외부에서 도크로 인식) */}
+      {[-DOCK_OPEN_HALF + 0.12, DOCK_OPEN_HALF - 0.12].map((zz, i) => (
+        <mesh key={`jamb${i}`} position={[-0.3, DOCK_OPEN_TOP / 2, zz]}>
+          <boxGeometry args={[0.16, DOCK_OPEN_TOP, 0.22]} />
+          <meshStandardMaterial color="#2b313a" metalness={0.4} roughness={0.6} />
+        </mesh>
+      ))}
+      <mesh position={[-0.3, DOCK_OPEN_TOP - 0.12, 0]}>
+        <boxGeometry args={[0.18, 0.34, DOCK_OPEN_HALF * 2]} />
+        <meshStandardMaterial color={col} emissive={col} emissiveIntensity={0.35} toneMapped={false} />
+      </mesh>
+      <mesh position={[-0.34, DOCK_OPEN_TOP - 0.12, -DOCK_OPEN_HALF + 0.55]}>
+        <boxGeometry args={[0.05, 0.26, 0.7]} />
+        <meshStandardMaterial color="#0d1117" metalness={0.3} roughness={0.6} />
+      </mesh>
       {/* 롤러 셔터(애니메이션) */}
       <mesh ref={shutter} position={[0.16, 1.6, 0]} castShadow>
         <boxGeometry args={[0.08, 3.0, 2.92]} />
@@ -149,39 +186,97 @@ function DockDoor({ dock, b }) {
   );
 }
 
-// 함대 색상 변주 — 동일 밴이 줄지어 선 인상을 피하려고 도크별로 차체에 옅은 톤을 곱함.
-// (텍스처가 흰 차체를 곱연산으로 물들임 → 무채/연톤 운송사 도장 느낌.)
-const FLEET_TINTS = ['#ffffff', '#c4ced9', '#aebccb', '#d6c6a8', '#b9c7bd', '#cdb6b0'];
+// 함대 차체 색상 변주 — 동일 트럭이 줄지어 선 인상을 피하려고 도크별로 도장색을 달리함.
+const FLEET_TINTS = ['#e7eaee', '#c4ced9', '#9fb0c2', '#d6c6a8', '#a9bcb0', '#cdb6b0'];
 
-/** 실사 트럭(glTF) — 후면이 도크(group 원점, +X)를 향하도록 회전·배치. */
+/**
+ * 절차적 박스 카고 트럭 — 적재함(후면 도어)이 도크(group +X)를 향해 후진 입차.
+ * 소형 밴이 아닌 물류센터 규격의 윙바디/박스 트럭 형상(현실고증).
+ */
 function Truck({ dock }) {
-  const { scene } = useGLTF('/models/truck.glb');
-  const cloned = useMemo(() => {
-    const c = scene.clone(true);
-    const idx = parseInt(String(dock.id).replace(/\D/g, ''), 10) || 0;
-    const tint = new THREE.Color(FLEET_TINTS[idx % FLEET_TINTS.length]);
-    c.traverse((o) => {
-      if (o.isMesh && o.material?.color) {
-        o.material = o.material.clone();
-        o.material.color.multiply(tint);
-      }
-    });
-    return c;
-  }, [scene, dock.id]);
   const ref = useRef();
   const t = dock.truck;
-  const S = 1.5; // 원본 길이 4.87 → ~7.3m
-  const LEN = 4.87 * S;
+  const idx = parseInt(String(dock.id).replace(/\D/g, ''), 10) || 0;
+  const body = FLEET_TINTS[idx % FLEET_TINTS.length];
   useFrame(() => {
     if (ref.current) ref.current.position.x = lerp(ref.current.position.x, t.x, 0.18);
   });
   if (t.state === 'gone') return null;
+
+  // 로컬 +X = 후면(도크), −X = 캡(외부).
+  const boxLen = 6.4;
+  const boxW = 2.5;
+  const boxH = 2.7;
+  const bedH = 0.95; // 적재함 바닥 높이
+  const cabLen = 2.2;
+  const cabH = 2.0;
+  const gap = 0.25;
+  const cabFront = -(boxLen + gap + cabLen); // 캡 앞면 x
+  const boxCY = bedH + boxH / 2;
+  const wheelZ = boxW / 2 - 0.18;
+  const axle = (x) =>
+    [wheelZ, -wheelZ].map((z, i) => (
+      <mesh key={`${x}-${i}`} position={[x, 0.5, z]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <cylinderGeometry args={[0.5, 0.5, 0.32, 18]} />
+        <meshStandardMaterial color="#0c0f14" roughness={0.9} />
+      </mesh>
+    ));
+
   return (
     <group ref={ref} position={[t.x, 0, dock.z]}>
-      {/* 캡 +Z / 후면 −Z 모델 → −90° 회전 시 후면이 +X(도크), 캡이 −X(외부). */}
-      <group position={[-LEN / 2, 0, 0]} rotation={[0, -Math.PI / 2, 0]} scale={S}>
-        <primitive object={cloned} />
-      </group>
+      {/* 적재함(박스 바디) — 후면 x=0이 도크로 */}
+      <mesh position={[-boxLen / 2, boxCY, 0]} castShadow receiveShadow>
+        <boxGeometry args={[boxLen, boxH, boxW]} />
+        <meshStandardMaterial color={body} metalness={0.12} roughness={0.6} />
+      </mesh>
+      {/* 후면 양판 도어 + 중앙 심 + 손잡이 */}
+      <mesh position={[0.05, boxCY, 0]}>
+        <boxGeometry args={[0.08, boxH - 0.14, boxW - 0.1]} />
+        <meshStandardMaterial color="#aab2bb" metalness={0.2} roughness={0.58} />
+      </mesh>
+      <mesh position={[0.1, boxCY, 0]}>
+        <boxGeometry args={[0.05, boxH - 0.14, 0.05]} />
+        <meshStandardMaterial color="#5b6470" metalness={0.3} roughness={0.6} />
+      </mesh>
+      {[-0.34, 0.34].map((z, i) => (
+        <mesh key={i} position={[0.12, boxCY - 0.1, z]}>
+          <boxGeometry args={[0.06, 0.6, 0.06]} />
+          <meshStandardMaterial color="#39414c" metalness={0.5} roughness={0.4} />
+        </mesh>
+      ))}
+      {/* 섀시 빔 */}
+      <mesh position={[(cabFront + 0.2) / 2, 0.62, 0]}>
+        <boxGeometry args={[boxLen + gap + cabLen - 0.2, 0.22, boxW - 0.5]} />
+        <meshStandardMaterial color="#23272e" metalness={0.4} roughness={0.6} />
+      </mesh>
+      {/* 캡 */}
+      <mesh position={[cabFront + cabLen / 2, bedH + cabH / 2, 0]} castShadow>
+        <boxGeometry args={[cabLen, cabH, boxW - 0.05]} />
+        <meshStandardMaterial color={body} metalness={0.2} roughness={0.5} />
+      </mesh>
+      {/* 윈드실드 */}
+      <mesh position={[cabFront + 0.05, bedH + cabH * 0.64, 0]}>
+        <boxGeometry args={[0.06, cabH * 0.46, boxW - 0.45]} />
+        <meshStandardMaterial color="#0f141b" metalness={0.5} roughness={0.18} />
+      </mesh>
+      {/* 측면 캡 창 */}
+      {[wheelZ + 0.02, -wheelZ - 0.02].map((z, i) => (
+        <mesh key={i} position={[cabFront + cabLen * 0.42, bedH + cabH * 0.62, z]}>
+          <boxGeometry args={[cabLen * 0.5, cabH * 0.38, 0.04]} />
+          <meshStandardMaterial color="#0f141b" metalness={0.5} roughness={0.18} />
+        </mesh>
+      ))}
+      {/* 헤드라이트 + 그릴 */}
+      {[-0.8, 0.8].map((z, i) => (
+        <mesh key={i} position={[cabFront + 0.02, bedH + 0.25, z]}>
+          <boxGeometry args={[0.05, 0.26, 0.32]} />
+          <meshStandardMaterial color="#eef3f8" emissive="#cdd8e2" emissiveIntensity={0.35} toneMapped={false} />
+        </mesh>
+      ))}
+      {/* 바퀴: 전축 + 후축 2열(듀얼) */}
+      {axle(cabFront + 1.0)}
+      {axle(-1.1)}
+      {axle(-2.25)}
     </group>
   );
 }
@@ -354,7 +449,7 @@ export default function Facility() {
 
   return (
     <group>
-      <Building b={b} />
+      <Building b={b} docks={facility.docks} />
 
       {/* 전면 반송 레인 + 안전 라인 */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[b.laneX, 0.015, midZ]} receiveShadow>
