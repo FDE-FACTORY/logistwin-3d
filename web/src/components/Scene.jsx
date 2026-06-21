@@ -34,7 +34,13 @@ function computeGoal(focus, ext, config) {
   return { pos: [ext.x * 0.5 + 5, ext.y * 1.95 + 13, ext.z * 1.15 + 24], target: [-7, ext.y * 0.32, ext.z * 0.12] };
 }
 
-/** 프리셋 변경 시 카메라+타깃을 부드럽게 이동(이후 수동 오르빗 가능). */
+const _cv1 = new THREE.Vector3();
+const _cv2 = new THREE.Vector3();
+
+/**
+ * 카메라 제어 — 정적 프리셋(전경/도크/상차장)은 부드럽게 1회 이동, `crane:N`은 해당 스태커
+ * 크레인을 실시간 추적(크레인 장착 카메라처럼 통로 안을 따라가며 작업 표시).
+ */
 function CameraRig({ ext }) {
   const focus = useStore((s) => s.cameraFocus);
   const seq = useStore((s) => s.focusSeq);
@@ -44,6 +50,10 @@ function CameraRig({ ext }) {
   const anim = useRef(null);
   useEffect(() => {
     if (!controls || !camera) return;
+    if (focus && focus.startsWith('crane:')) {
+      anim.current = null; // 추적 모드 — useFrame이 매 프레임 따라감
+      return;
+    }
     const g = computeGoal(focus, ext, config);
     anim.current = {
       fromPos: camera.position.clone(),
@@ -55,8 +65,28 @@ function CameraRig({ ext }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seq]);
   useFrame((_, dt) => {
+    if (!controls) return;
+    const st = useStore.getState();
+    const f = st.cameraFocus;
+    // 크레인 추적 — 선택 크레인의 실시간 좌표를 따라 통로 안을 비행.
+    if (f && f.startsWith('crane:') && st.config) {
+      const n = parseInt(f.split(':')[1], 10);
+      const cr = st.cranes.find((c) => c.aisle === n);
+      if (cr) {
+        const cs = st.config.cellSize;
+        const wx = cr.x * cs.width - ext.x / 2;
+        const wy = (cr.z - 1) * cs.height;
+        const wz = (n - 1) * st.config.aisleSpacing + cs.depth / 2 - ext.z / 2;
+        // 통로 안에서 크레인을 뒤따름 — 건물 밖으로 나가지 않게 전방(−X) 한계를 클램프.
+        const camX = Math.max(-ext.x / 2 + 0.5, wx - 4.5);
+        camera.position.lerp(_cv1.set(camX, wy * 0.4 + 3.6, wz), 0.06);
+        controls.target.lerp(_cv2.set(wx + 1.5, wy * 0.55 + 0.9, wz), 0.12);
+        controls.update();
+      }
+      return;
+    }
     const a = anim.current;
-    if (!a || !controls) return;
+    if (!a) return;
     a.t = Math.min(1, a.t + dt / 1.1);
     const k = a.t < 0.5 ? 2 * a.t * a.t : 1 - Math.pow(-2 * a.t + 2, 2) / 2; // easeInOutQuad
     camera.position.lerpVectors(a.fromPos, a.toPos, k);

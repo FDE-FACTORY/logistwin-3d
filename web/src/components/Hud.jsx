@@ -314,14 +314,14 @@ function InspectorPanel() {
             </div>
           </div>
           <div>
-            <Label>통로 들여다보기</Label>
+            <Label>크레인 시점 (추적)</Label>
             <div className="mt-1 grid grid-cols-4 gap-1">
               {aisles.map((n) => (
                 <button
                   key={n}
-                  onClick={() => setFocus(`aisle:${n}`)}
+                  onClick={() => setFocus(`crane:${n}`)}
                   className="tnum rounded px-1 py-1 text-xs font-semibold transition"
-                  style={sel(focus === `aisle:${n}`)}
+                  style={sel(focus === `crane:${n}`)}
                 >
                   {n}
                 </button>
@@ -398,16 +398,79 @@ function IntroOverlay() {
   );
 }
 
+/** 크레인 진단 — 추적 중인 스태커 크레인의 실시간 상태·위치·사이클·고장코드·최근 로그(하단 중앙). */
+function CraneDiagnostics() {
+  const focus = useStore((s) => s.cameraFocus);
+  const cranes = useStore((s) => s.cranes);
+  const orders = useStore((s) => s.orders);
+  const sendCommand = useStore((s) => s.sendCommand);
+  const view = useStore((s) => s.view);
+  if (view !== '3D' || !focus || !focus.startsWith('crane:')) return null;
+  const n = parseInt(focus.split(':')[1], 10);
+  const id = `C${n}`;
+  const cr = cranes.find((c) => c.id === id || c.aisle === n);
+  if (!cr) return null;
+  const log = orders.filter((o) => o.kind === 'done' && o.crane === id).slice(0, 4);
+  const field = (label, value, color) => (
+    <div className="flex flex-col">
+      <Label>{label}</Label>
+      <span className="text-xs font-semibold" style={{ color: color || theme.text }}>{value}</span>
+    </div>
+  );
+  return (
+    <div className="pointer-events-auto absolute bottom-3 left-1/2 hidden w-[min(560px,calc(100vw-2rem))] -translate-x-1/2 md:block">
+      <Panel
+        title={`${id} 크레인 진단 · 실시간`}
+        right={
+          <span className="flex items-center gap-1.5 text-[11px]" style={{ color: cr.fault ? theme.alarm : theme.ok }}>
+            <Dot color={cr.fault ? theme.alarm : theme.ok} pulse={!!cr.fault} />
+            {cr.fault ? '고장' : '정상 가동'}
+          </span>
+        }
+      >
+        <div className="flex items-center gap-5">
+          {field('상태', STATE_LABEL[cr.state] || cr.state)}
+          {field('위치', `베이 ${Math.round(cr.x)} · L${Math.max(1, Math.round(cr.z))}`)}
+          {field('사이클', cr.cycle === 'DUAL' ? '복합' : cr.cycle === 'SINGLE' ? '단일' : '—', cr.cycle === 'DUAL' ? theme.info : theme.text)}
+          {field('적재', cr.carrying ? '보유' : '공차', cr.carrying ? theme.caution : theme.textDim)}
+        </div>
+        {cr.fault && (
+          <div className="mt-2 flex items-center justify-between gap-3 rounded-md border px-3 py-2" style={{ background: `${theme.alarm}1a`, borderColor: `${theme.alarm}80` }}>
+            <div className="min-w-0">
+              <div className="text-xs font-bold" style={{ color: theme.alarm }}>⚠ {cr.fault.code} · {cr.fault.label}</div>
+              <div className="truncate text-[11px]" style={{ color: theme.textDim }}>권장 조치: {cr.fault.hint}</div>
+            </div>
+            <Btn variant="danger" onClick={() => sendCommand({ type: 'RESOLVE_CRANE_FAULT', id })}>복구</Btn>
+          </div>
+        )}
+        <div className="mt-2 border-t pt-1.5" style={{ borderColor: theme.border }}>
+          <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px]">
+            {log.length === 0 && <span style={{ color: theme.textFaint }}>최근 처리 작업 대기 중…</span>}
+            {log.map((o, i) => (
+              <span key={i} style={{ color: theme.textDim }}>
+                <span className="tnum" style={{ color: theme.textFaint }}>{o.t}</span> {o.cycle === 'DUAL' ? '복합' : '완료'} · {o.sku || o.id}
+              </span>
+            ))}
+          </div>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
 export default function Hud() {
   const view = useStore((s) => s.view);
+  const focus = useStore((s) => s.cameraFocus);
   const isWarehouse = view !== 'MAP';
+  const craneMode = view === '3D' && focus && focus.startsWith('crane:');
   return (
     <div className="pointer-events-none absolute inset-0" style={{ color: theme.text }}>
       <TopBar />
       <ExceptionAlert />
       <InspectorPanel />
       {isWarehouse && <ControlColumn />}
-      {isWarehouse && <WorkLog />}
+      {isWarehouse && <CraneDiagnostics />}
+      {isWarehouse && !craneMode && <WorkLog />}
       {isWarehouse && <Legend />}
       {isWarehouse && <MobileBar />}
       <IntroOverlay />

@@ -1,7 +1,7 @@
 import { useRef, useMemo, useEffect, Suspense } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { useGLTF } from '@react-three/drei';
+import { useGLTF, Html } from '@react-three/drei';
 import { useStore } from '../store.js';
 import { theme } from '../theme.js';
 
@@ -72,8 +72,9 @@ function GltfCrane({ data, config, modelRef }) {
   }
 
   // 가시성 마스트 + 상단 비콘 — 랙 상단 위로 돌출시켜 전경/통로 어느 각도에서나 크레인 위치·상태 식별.
+  // 고장(fault) 시 비콘이 적색 + 에러코드 태그로 진단 가능.
   const lv = config.levels;
-  const stateColor = STATE_COLOR[data.state] || theme.crane.IDLE;
+  const stateColor = data.fault ? theme.alarm : STATE_COLOR[data.state] || theme.crane.IDLE;
 
   return (
     <group ref={group} scale={[s, s, s]}>
@@ -83,9 +84,27 @@ function GltfCrane({ data, config, modelRef }) {
         <meshStandardMaterial color="#aeb7c4" metalness={0.5} roughness={0.45} />
       </mesh>
       <mesh position={[0, lv + 1.3, 0]}>
-        <sphereGeometry args={[0.46, 18, 18]} />
-        <meshStandardMaterial color={stateColor} emissive={stateColor} emissiveIntensity={3.2} toneMapped={false} />
+        <sphereGeometry args={[data.fault ? 0.6 : 0.46, 18, 18]} />
+        <meshStandardMaterial color={stateColor} emissive={stateColor} emissiveIntensity={data.fault ? 4.5 : 3.2} toneMapped={false} />
       </mesh>
+      {data.fault && (
+        <Html position={[0, lv + 2.4, 0]} center distanceFactor={42} zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
+          <div
+            style={{
+              background: 'rgba(229,72,77,0.92)',
+              color: '#fff',
+              padding: '2px 8px',
+              borderRadius: 4,
+              fontSize: 12,
+              fontWeight: 700,
+              whiteSpace: 'nowrap',
+              boxShadow: '0 0 12px rgba(229,72,77,0.6)',
+            }}
+          >
+            ⚠ {data.id} {data.fault.code}
+          </div>
+        </Html>
+      )}
     </group>
   );
 }
