@@ -349,6 +349,55 @@ function InspectorPanel() {
   );
 }
 
+/** 온보딩 인트로 — 첫 진입 시 프로젝트 정체성·핵심 강점·동선을 제시(평가자 컨텍스트). */
+function IntroOverlay() {
+  const open = useStore((s) => s.introOpen);
+  const close = useStore((s) => s.closeIntro);
+  if (!open) return null;
+  const features = [
+    ['결정론적 시뮬레이션 엔진', '포아송 도착·ABC 파레토·시간대 수요 + 크레인 상태머신 (시드 고정 재현)'],
+    ['복합명령 최적화 · 검증', '공차 복귀 제거로 주행 34.5%·전력 31% 절감 (Bozer & White 모델)'],
+    ['실시간 풀스택 트윈', 'WebSocket 스트리밍 — 크레인·컨베이어·지게차·트럭 흐름 실시간'],
+    ['인스펙션 · ESG · TMS', '통로 드릴인·층 isolate, 전력·탄소, 배송 관제(위치정보 컴플라이언스)'],
+  ];
+  return (
+    <div
+      className="pointer-events-auto absolute inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(6,9,13,0.74)' }}
+    >
+      <div className="w-[min(580px,calc(100vw-2rem))] rounded-lg border shadow-2xl" style={{ background: theme.panel, borderColor: theme.borderStrong }}>
+        <div className="border-b px-5 py-4" style={{ borderColor: theme.border }}>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-lg font-bold tracking-tight" style={{ color: theme.text }}>
+              LogisTwin <span style={{ color: theme.info }}>3D</span>
+            </span>
+            <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider" style={{ background: `${theme.ok}1f`, color: theme.ok }}>
+              Real-time Digital Twin
+            </span>
+          </div>
+          <p className="mt-1.5 text-xs leading-relaxed" style={{ color: theme.textDim }}>
+            스태커 크레인(AS/RS) 자동창고를 실시간으로 시뮬레이션·시각화하고, 복합명령으로 주행·에너지를 최적화하는 디지털 트윈.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-2.5 px-5 py-4 sm:grid-cols-2">
+          {features.map(([t, d], i) => (
+            <div key={i} className="rounded-md border p-3" style={{ borderColor: theme.border, background: theme.bgDeep }}>
+              <div className="text-xs font-semibold" style={{ color: theme.text }}>{t}</div>
+              <div className="mt-1 text-[11px] leading-relaxed" style={{ color: theme.textDim }}>{d}</div>
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t px-5 py-3" style={{ borderColor: theme.border }}>
+          <span className="text-[11px]" style={{ color: theme.textFaint }}>
+            좌측 <b style={{ color: theme.textDim }}>통로</b> 버튼으로 랙 사이를 들여다보거나, 상단에서 평면·배송 뷰로 전환하세요.
+          </span>
+          <Btn variant="primary" onClick={close}>둘러보기 시작</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Hud() {
   const view = useStore((s) => s.view);
   const isWarehouse = view !== 'MAP';
@@ -361,6 +410,7 @@ export default function Hud() {
       {isWarehouse && <WorkLog />}
       {isWarehouse && <Legend />}
       {isWarehouse && <MobileBar />}
+      <IntroOverlay />
     </div>
   );
 }

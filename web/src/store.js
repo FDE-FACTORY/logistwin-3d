@@ -19,6 +19,7 @@ export const useStore = create((set, get) => ({
   floorFilter: 0, // 0=전체, 1..levels=해당 층만 표시
   cameraFocus: 'overview', // 'overview' | 'dock' | `aisle:<n>` — 카메라 프리셋
   focusSeq: 0, // 같은 프리셋 재클릭 시에도 재이동 트리거
+  introOpen: true, // 첫 진입 온보딩 오버레이
   config: null,
   craneModelInfo: null,
   cranes: [],
@@ -40,6 +41,7 @@ export const useStore = create((set, get) => ({
   setView: (v) => set({ view: v }),
   setFloorFilter: (v) => set({ floorFilter: v }),
   setCameraFocus: (v) => set({ cameraFocus: v, focusSeq: get().focusSeq + 1 }),
+  closeIntro: () => set({ introOpen: false }),
   setEmit: (fn) => set({ emit: fn }),
   sendCommand: (cmd) => {
     const fn = get().emit;
