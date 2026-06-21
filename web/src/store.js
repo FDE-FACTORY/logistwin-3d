@@ -24,6 +24,7 @@ export const useStore = create((set, get) => ({
   craneModelInfo: null,
   cranes: [],
   kpi: null,
+  oee: null, // 설비종합효율(가용성×성능×품질)
   cycles: null,
   virtualTime: '--:--:--',
   tick: 0,
@@ -93,6 +94,7 @@ export const useStore = create((set, get) => ({
     set({
       cranes: s.cranes || [],
       kpi: s.kpi || null,
+      oee: s.oee ?? get().oee,
       cycles: s.cycles || null,
       exceptions: s.exceptions ?? get().exceptions,
       tms: s.tms ?? get().tms,

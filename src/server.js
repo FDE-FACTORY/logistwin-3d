@@ -68,6 +68,16 @@ const craneFaults = new Map(); // craneId -> { code, label, hint, tick }
 const CRANE_FAULT_EVERY = Number(process.env.CRANE_FAULT_EVERY) || 360; // 발생 주기
 const CRANE_FAULT_TTL = Number(process.env.CRANE_FAULT_TTL) || 80; // 미조치 시 자동 복구
 
+// 예지보전 — 크레인별 건강도(0~100). 가동으로 마모, 임계 하향 시 고장 전 경보.
+const craneHealth = new Map();
+const craneHealthOf = (id) => (craneHealth.has(id) ? craneHealth.get(id) : 100);
+const CRANE_HEALTH_WARN = Number(process.env.CRANE_HEALTH_WARN) || 32; // 정비 권장 임계
+const predicted = new Set(); // 예측 경보를 이미 띄운 크레인
+
+// OEE(설비종합효율) 집계 — 가용성 × 성능 × 품질.
+const oeeAcc = { craneTicks: 0, faultTicks: 0, defects: 0 };
+const OEE_IDEAL_CYCLE_TICKS = Number(process.env.OEE_IDEAL_CYCLE_TICKS) || 14; // 이상 사이클 주기(성능 기준)
+
 // TMS(배송 차량) 시뮬레이터 — 시뮬 RNG와 분리.
 const tms = new TmsSimulator(new Rng((Number(process.env.SIM_SEED ?? simConfig.seed) || 1) + 4231), {
   count: Number(process.env.TMS_TRUCKS) || 6,
@@ -206,6 +216,18 @@ function handleCommand(cmd = {}) {
         virtualTime: clock.virtualTime,
       });
     }
+  } else if (cmd.type === 'CRANE_MAINTENANCE' && cmd.id) {
+    // 예지보전 — 정비 실시: 건강도 복원 + 활성 고장 해소.
+    craneHealth.set(cmd.id, 100);
+    predicted.delete(cmd.id);
+    const had = craneFaults.delete(cmd.id);
+    io.emit('patch', {
+      cellDeltas: [],
+      events: [{ kind: 'predictive', level: 'ok', msg: `${cmd.id} 크레인 정비 완료 — 건강도 100% 복원${had ? '·고장 해소' : ''}.`, tick: clock.tick }],
+      exceptions: exceptions.list(),
+      tick: clock.tick,
+      virtualTime: clock.virtualTime,
+    });
   } else if (cmd.type === 'SET_CONSENT') {
     tms.setConsentGlobal(cmd.value);
     io.emit('patch', {
@@ -243,6 +265,7 @@ clock.on('tick', ({ tick, virtualTime, hourOfDay }) => {
       cellDeltas.set(exc.cellId, { id: exc.cellId, occupied: true, exception: true });
       tickEvents.push({ kind: 'exception', level: 'alarm', msg: `${exc.cellId}에서 ${exc.label} 예외가 발생했습니다.`, tick });
       recordEvent('exception', exc, tick);
+      oeeAcc.defects += 1; // 품질 차감(불일치/스캔실패)
     }
   }
   // 자동 해소 — 일정 시간 지난 예외는 운영자 조치 완료로 클리어(경보 누적 방지).
@@ -251,13 +274,32 @@ clock.on('tick', ({ tick, virtualTime, hourOfDay }) => {
     tickEvents.push({ kind: 'exception', level: 'info', msg: `${exc.cellId} ${exc.label} 예외가 조치 완료되었습니다.`, tick });
   }
 
-  // 크레인 고장 진단 — 주기적 결함 발생(에러코드) + 미조치 시 자동 복구.
-  if (tick % CRANE_FAULT_EVERY === 0 && craneFaults.size < 1) {
-    const c = controlRng.pick(dispatcher.cranes);
-    if (c && !craneFaults.has(c.id)) {
-      const spec = controlRng.pick(CRANE_FAULTS);
-      craneFaults.set(c.id, { code: spec.code, label: spec.label, hint: spec.hint, tick });
-      tickEvents.push({ kind: 'crane_fault', level: 'alarm', msg: `${c.id} 크레인 고장 발생 — ${spec.code} ${spec.label}`, tick });
+  // 예지보전 — 가동에 따른 건강도 마모 + 임계 진입 시 고장 전 경보.
+  for (const c of dispatcher.cranes) {
+    const working = c.state === 'HANDLING' || c.state === 'TRAVELING' || c.state === 'RETURNING';
+    let h = craneHealthOf(c.id) - (working ? 0.045 : 0.012);
+    if (craneFaults.has(c.id)) h -= 0.25; // 고장 중 급락
+    h = Math.max(0, h);
+    craneHealth.set(c.id, h);
+    if (h < CRANE_HEALTH_WARN && !predicted.has(c.id) && !craneFaults.has(c.id)) {
+      predicted.add(c.id);
+      tickEvents.push({ kind: 'predictive', level: 'caution', msg: `${c.id} 크레인 건강도 ${Math.round(h)}% — 고장 전 정비 권장(예지보전)`, tick });
+    }
+    if (h >= CRANE_HEALTH_WARN + 12) predicted.delete(c.id);
+  }
+
+  // 크레인 고장 — 건강도 낮을수록 발생 확률↑(예측 미조치 시 실제 고장). 주기적 + 임계 강제.
+  if (craneFaults.size < 1) {
+    const worst = dispatcher.cranes.reduce((m, c) => (craneHealthOf(c.id) < craneHealthOf(m.id) ? c : m), dispatcher.cranes[0]);
+    const due = tick % CRANE_FAULT_EVERY === 0;
+    const critical = worst && craneHealthOf(worst.id) < 8;
+    if (critical || due) {
+      const c = critical ? worst : controlRng.pick(dispatcher.cranes);
+      if (c && !craneFaults.has(c.id)) {
+        const spec = controlRng.pick(CRANE_FAULTS);
+        craneFaults.set(c.id, { code: spec.code, label: spec.label, hint: spec.hint, tick });
+        tickEvents.push({ kind: 'crane_fault', level: 'alarm', msg: `${c.id} 크레인 고장 발생 — ${spec.code} ${spec.label}`, tick });
+      }
     }
   }
   for (const [id, f] of [...craneFaults]) {
@@ -267,14 +309,36 @@ clock.on('tick', ({ tick, virtualTime, hourOfDay }) => {
     }
   }
 
+  // OEE 집계 — 가동 가능 크레인-틱 / 고장 틱 누적.
+  oeeAcc.craneTicks += dispatcher.cranes.length;
+  oeeAcc.faultTicks += craneFaults.size;
+
   tms.tick();
   facility.tick();
+
+  const kpiSnap = kpi.snapshot(generator.jobQueue.length);
+  // OEE = 가용성 × 성능 × 품질.
+  const operating = Math.max(1, oeeAcc.craneTicks - oeeAcc.faultTicks);
+  const availability = operating / Math.max(1, oeeAcc.craneTicks);
+  const idealCycles = operating / OEE_IDEAL_CYCLE_TICKS;
+  const performance = Math.min(1, kpiSnap.completed / Math.max(1, idealCycles));
+  const quality = kpiSnap.completed > 0 ? Math.max(0, (kpiSnap.completed - oeeAcc.defects) / kpiSnap.completed) : 1;
+  const oee = {
+    availability: Number(availability.toFixed(4)),
+    performance: Number(performance.toFixed(4)),
+    quality: Number(quality.toFixed(4)),
+    value: Number((availability * performance * quality).toFixed(4)),
+  };
 
   io.emit('state', {
     tick,
     virtualTime,
     hourOfDay,
-    cranes: dispatcher.cranes.map((c) => ({ ...c.renderState(), fault: craneFaults.get(c.id) || null })),
+    cranes: dispatcher.cranes.map((c) => ({
+      ...c.renderState(),
+      fault: craneFaults.get(c.id) || null,
+      health: Math.round(craneHealthOf(c.id)),
+    })),
     cellDeltas: [...cellDeltas.values()],
     orders: tickOrders,
     done: tickDone,
@@ -283,7 +347,8 @@ clock.on('tick', ({ tick, virtualTime, hourOfDay }) => {
     tms: tms.snapshot(hourOfDay),
     facility: facility.snapshot(),
     cycles: dispatcher.totals(),
-    kpi: kpi.snapshot(generator.jobQueue.length),
+    kpi: kpiSnap,
+    oee,
   });
   tickOrders = [];
   tickDone = [];
