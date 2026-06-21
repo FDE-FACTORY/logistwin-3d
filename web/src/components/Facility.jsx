@@ -345,7 +345,7 @@ function Truck({ dock }) {
 
 useGLTF.preload('/models/forklift.glb');
 // 지게차 모델 보정 — 런타임 바운딩박스로 자동 스케일·접지(원본 변환 불문). 방향은 캡처로 튜닝.
-const FORKLIFT_ROT = Math.PI / 2; // 포크가 트럭(−X)을 향하도록 회전(필요시 조정)
+const FORKLIFT_ROT = -Math.PI / 2; // 포크가 트럭(−X·진행 방향)을 향하도록 회전(180° 정정)
 const FORKLIFT_LEN = 2.7; // 목표 전장(m)
 
 /** 지게차 — glTF 실사 모델 + 스테이징↔트럭 상차 주행. */
