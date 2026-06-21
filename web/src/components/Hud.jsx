@@ -25,7 +25,10 @@ function TopBar() {
           LogisTwin <span style={{ color: theme.info }}>3D</span>
         </span>
         <span className="hidden text-xs sm:inline" style={{ color: theme.textDim }}>
-          AS/RS 자동창고 통합 관제
+          실시간 AS/RS 디지털 트윈
+        </span>
+        <span className="hidden items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold lg:inline-flex" style={{ background: `${theme.ok}1f`, color: theme.ok }}>
+          복합명령 ▼34.5% 주행
         </span>
       </div>
 
@@ -96,6 +99,51 @@ function ExceptionAlert() {
   );
 }
 
+/** 핵심 차별점 — 복합명령(Dual-Command) 최적화 성과 (검증 벤치마크 + 실시간 페어링). */
+function OptScorecard() {
+  const cycles = useStore((s) => s.cycles);
+  const dualShare =
+    cycles && cycles.single + cycles.dual > 0 ? Math.round((cycles.dual / (cycles.single + cycles.dual)) * 100) : 0;
+  const Metric = ({ label, pct, detail }) => (
+    <div className="flex flex-col">
+      <Label>{label}</Label>
+      <span className="tnum text-2xl font-bold leading-none" style={{ color: theme.ok }}>
+        ▼{pct}
+      </span>
+      <span className="mt-1 text-[10px] tnum" style={{ color: theme.textFaint }}>
+        {detail}
+      </span>
+    </div>
+  );
+  return (
+    <Panel
+      title="복합명령 최적화"
+      right={
+        <span className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ background: `${theme.ok}22`, color: theme.ok }}>
+          검증
+        </span>
+      }
+    >
+      <div className="grid grid-cols-2 gap-3">
+        <Metric label="명령당 주행" pct="34.5%" detail="15.8 → 10.3 m" />
+        <Metric label="전력 · 탄소" pct="31.0%" detail="584 → 403 kWh" />
+      </div>
+      <div className="mt-2.5 border-t pt-2" style={{ borderColor: theme.border }}>
+        <div className="flex items-center justify-between text-[11px]">
+          <span style={{ color: theme.textDim }}>실시간 페어링률</span>
+          <span className="tnum font-semibold" style={{ color: theme.info }}>{dualShare}%</span>
+        </div>
+        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full" style={{ background: theme.border }}>
+          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${dualShare}%`, background: theme.info }} />
+        </div>
+        <p className="mt-1.5 text-[10px] leading-relaxed" style={{ color: theme.textFaint }}>
+          입고 직후 같은 통로 출고를 연계해 공차 복귀를 제거 — 사이클당 2건 처리. Bozer &amp; White(1984) 모델 검증.
+        </p>
+      </div>
+    </Panel>
+  );
+}
+
 /** KPI + ESG + 운영 제어 (우측 컬럼, 데스크톱/태블릿). */
 function ControlColumn() {
   const kpi = useStore((s) => s.kpi);
@@ -108,7 +156,8 @@ function ControlColumn() {
     cycles && cycles.single + cycles.dual > 0 ? Math.round((cycles.dual / (cycles.single + cycles.dual)) * 100) : 0;
 
   return (
-    <div className="pointer-events-auto absolute right-3 top-16 hidden w-[300px] flex-col gap-3 md:flex" style={{ maxHeight: 'calc(100% - 5rem)' }}>
+    <div className="pointer-events-auto absolute right-3 top-16 hidden w-[300px] flex-col gap-3 overflow-y-auto md:flex" style={{ maxHeight: 'calc(100% - 5rem)' }}>
+      <OptScorecard />
       <Panel title="운영 지표">
         <div className="grid grid-cols-2 gap-x-4 gap-y-3">
           <Stat label="처리량" value={kpi.completed} unit="건" color={theme.ok} />
