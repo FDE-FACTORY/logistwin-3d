@@ -48,9 +48,11 @@ function CameraRig({ ext }) {
   const controls = useThree((s) => s.controls);
   const camera = useThree((s) => s.camera);
   const anim = useRef(null);
+  const followPos = useRef(new THREE.Vector3());
   useEffect(() => {
     if (!controls || !camera) return;
     if (focus && focus.startsWith('crane:')) {
+      followPos.current.copy(camera.position); // 부드러운 진입 시작점
       anim.current = null; // 추적 모드 — useFrame이 매 프레임 따라감
       return;
     }
@@ -68,23 +70,28 @@ function CameraRig({ ext }) {
     if (!controls) return;
     const st = useStore.getState();
     const f = st.cameraFocus;
-    // 크레인 추적 — 선택 크레인의 실시간 좌표를 따라 통로 안을 비행.
+    // 크레인 추적 — 통로 입구에 고정한 카메라가 선택 크레인을 PTZ처럼 추적(작업 관찰).
+    // OrbitControls를 끄고 직접 lookAt → 덮어쓰기/플로팅 방지.
     if (f && f.startsWith('crane:') && st.config) {
       const n = parseInt(f.split(':')[1], 10);
-      const cr = st.cranes.find((c) => c.aisle === n);
+      const cr = st.cranes.find((c) => c.aisle === n || c.id === `C${n}`);
       if (cr) {
+        controls.enabled = false;
         const cs = st.config.cellSize;
         const wx = cr.x * cs.width - ext.x / 2;
         const wy = (cr.z - 1) * cs.height;
         const wz = (n - 1) * st.config.aisleSpacing + cs.depth / 2 - ext.z / 2;
-        // 통로 안에서 크레인을 뒤따름 — 건물 밖으로 나가지 않게 전방(−X) 한계를 클램프.
-        const camX = Math.max(-ext.x / 2 + 0.5, wx - 4.5);
-        camera.position.lerp(_cv1.set(camX, wy * 0.4 + 3.6, wz), 0.06);
-        controls.target.lerp(_cv2.set(wx + 1.5, wy * 0.55 + 0.9, wz), 0.12);
-        controls.update();
+        // 좁은 통로(1.2m)라 슬롯 위에서 내려다보며 크레인을 추적(드론 뷰) — 막힘 없이 작업 관찰.
+        // 내가 스무딩한 위치를 매 프레임 강제 복사해 OrbitControls.update() 덮어쓰기를 무력화.
+        followPos.current.lerp(_cv1.set(wx - 7, wy * 0.45 + 7.5, wz), 0.1);
+        camera.position.copy(followPos.current);
+        _cv2.set(wx + 0.5, wy * 0.7, wz); // 크레인 추적 타깃
+        camera.lookAt(_cv2);
+        controls.target.copy(_cv2);
       }
       return;
     }
+    if (!controls.enabled) controls.enabled = true;
     const a = anim.current;
     if (!a) return;
     a.t = Math.min(1, a.t + dt / 1.1);
